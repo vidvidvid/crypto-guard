@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Crypto Scam Tracker",
+  "version": "1.0",
+  "description": "Track and flag potentially scammy crypto sites",
+  "action": {
+    "default_popup": "index.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "permissions": ["activeTab", "storage"],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["contentScript.js"]
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
+}
