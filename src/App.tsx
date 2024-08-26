@@ -33,7 +33,7 @@ const privateKeyProvider = new EthereumPrivateKeyProvider({
 
 const web3auth = new Web3Auth({
   clientId,
-  web3AuthNetwork: WEB3AUTH_NETWORK.SAPPHIRE_MAINNET,
+  web3AuthNetwork: WEB3AUTH_NETWORK.SAPPHIRE_DEVNET, // Change this to match your dashboard
   privateKeyProvider,
 });
 
@@ -41,6 +41,7 @@ function App() {
   const [provider, setProvider] = useState<IProvider | null>(null);
   const [loggedIn, setLoggedIn] = useState(false);
   const [currentUrl, setCurrentUrl] = useState<string>("");
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const init = async () => {
@@ -61,7 +62,8 @@ function App() {
           });
         }
       } catch (error) {
-        console.error(error);
+        console.error("Initialization error:", error);
+        setError("Failed to initialize Web3Auth. Check console for details.");
       }
     };
 
@@ -69,17 +71,27 @@ function App() {
   }, []);
 
   const login = async () => {
-    const web3authProvider = await web3auth.connect();
-    setProvider(web3authProvider);
-    if (web3auth.connected) {
-      setLoggedIn(true);
+    try {
+      const web3authProvider = await web3auth.connect();
+      setProvider(web3authProvider);
+      if (web3auth.connected) {
+        setLoggedIn(true);
+      }
+    } catch (error) {
+      console.error("Login error:", error);
+      setError("Failed to login. Check console for details.");
     }
   };
 
   const logout = async () => {
-    await web3auth.logout();
-    setProvider(null);
-    setLoggedIn(false);
+    try {
+      await web3auth.logout();
+      setProvider(null);
+      setLoggedIn(false);
+    } catch (error) {
+      console.error("Logout error:", error);
+      setError("Failed to logout. Check console for details.");
+    }
   };
 
   const checkWebsite = async () => {
@@ -99,6 +111,7 @@ function App() {
   return (
     <div className='App'>
       <h1>Crypto Scam Tracker</h1>
+      {error && <p style={{ color: "red" }}>{error}</p>}
       {loggedIn ? (
         <>
           <p>Current URL: {currentUrl}</p>
