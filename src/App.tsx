@@ -11,8 +11,9 @@ import { EthereumPrivateKeyProvider } from "@web3auth/ethereum-provider";
 import {
   getFlaggedSites,
   flagSite,
-  getUser,
+  unflagSite,
   createOrUpdateUser,
+  getFlagCount,
 } from "./supabaseClient";
 
 const clientId = import.meta.env.VITE_WEB3AUTH_CLIENT_ID || "";
@@ -31,13 +32,8 @@ const privateKeyProvider = new EthereumPrivateKeyProvider({
   config: { chainConfig },
 });
 
-const web3auth = new Web3Auth({
-  clientId,
-  web3AuthNetwork: WEB3AUTH_NETWORK.SAPPHIRE_DEVNET,
-  privateKeyProvider,
-});
-
 function App() {
+  const [web3auth, setWeb3auth] = useState<Web3Auth | null>(null);
   const [provider, setProvider] = useState<IProvider | null>(null);
   const [loggedIn, setLoggedIn] = useState(false);
   const [userData, setUserData] = useState<UserInfo | null>(null);
@@ -46,11 +42,22 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [isValidUrl, setIsValidUrl] = useState(false);
+  const [flagCount, setFlagCount] = useState<number>(0);
 
   useEffect(() => {
     const init = async () => {
       try {
+        const web3auth = new Web3Auth({
+          clientId,
+          web3AuthNetwork: WEB3AUTH_NETWORK.SAPPHIRE_DEVNET,
+          chainConfig,
+          privateKeyProvider,
+        });
+
+        setWeb3auth(web3auth);
+
         await web3auth.initModal();
+
         if (web3auth.provider) {
           setProvider(web3auth.provider);
           const user = await web3auth.getUserInfo();
@@ -95,6 +102,10 @@ function App() {
   };
 
   const login = async () => {
+    if (!web3auth) {
+      setError("Web3Auth not initialized yet");
+      return;
+    }
     try {
       const web3authProvider = await web3auth.connect();
       setProvider(web3authProvider);
@@ -115,6 +126,10 @@ function App() {
   };
 
   const logout = async () => {
+    if (!web3auth) {
+      setError("Web3Auth not initialized yet");
+      return;
+    }
     try {
       await web3auth.logout();
       setProvider(null);
@@ -137,16 +152,35 @@ function App() {
     }
 
     try {
-      const result = await flagSite(currentUrl, userData.email);
-      if (result === null) {
-        setMessage("You have already flagged this site.");
-      } else {
-        setMessage("Site flagged successfully!");
-      }
+      await flagSite(currentUrl, userData.email);
+      const newCount = await getFlagCount(currentUrl);
+      setFlagCount(newCount);
+      setMessage(`Site flagged successfully! Total flags: ${newCount}`);
       await loadFlaggedSites();
     } catch (error) {
       console.error("Error flagging site:", error);
       setError("Failed to flag site: " + (error as Error).message);
+    }
+  };
+
+  const handleUnflagSite = async () => {
+    setError(null);
+    setMessage(null);
+
+    if (!userData?.email || !currentUrl || !isValidUrl) {
+      setError("Cannot unflag site: missing data or invalid URL");
+      return;
+    }
+
+    try {
+      await unflagSite(currentUrl, userData.email);
+      const newCount = await getFlagCount(currentUrl);
+      setFlagCount(newCount);
+      setMessage(`Site unflagged successfully! Total flags: ${newCount}`);
+      await loadFlaggedSites();
+    } catch (error) {
+      console.error("Error unflagging site:", error);
+      setError("Failed to unflag site: " + (error as Error).message);
     }
   };
 
@@ -159,8 +193,12 @@ function App() {
         <>
           <p>Logged in as: {userData?.email}</p>
           <p>Current URL: {currentUrl}</p>
+          <p>Flag Count: {flagCount}</p>
           {isValidUrl ? (
-            <button onClick={handleFlagSite}>Flag Current Site</button>
+            <>
+              <button onClick={handleFlagSite}>Flag Current Site</button>
+              <button onClick={handleUnflagSite}>Unflag Current Site</button>
+            </>
           ) : (
             <p>Cannot flag this type of URL</p>
           )}

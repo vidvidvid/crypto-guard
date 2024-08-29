@@ -3,6 +3,8 @@
   "name": "Crypto Scam Tracker",
   "version": "1.0",
   "description": "Track and flag potentially scammy crypto sites",
+  "permissions": ["activeTab", "storage", "tabs"],
+  "host_permissions": ["https://*/*", "http://*/*"],
   "action": {
     "default_popup": "index.html",
     "default_icon": {
@@ -11,18 +13,29 @@
       "128": "icon128.png"
     }
   },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
   },
-  "permissions": ["activeTab", "storage"],
-  "host_permissions": ["https://*/*"],
-  "content_scripts": [
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
+  "web_accessible_resources": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["contentScript.js"]
+      "resources": [
+        "icon16.png",
+        "icon48.png",
+        "icon128.png",
+        "icon16_flagged.png",
+        "icon48_flagged.png",
+        "icon128_flagged.png"
+      ],
+      "matches": ["<all_urls>"]
     }
-  ],
-  "background": {
-    "service_worker": "background.js"
-  }
+  ]
 }

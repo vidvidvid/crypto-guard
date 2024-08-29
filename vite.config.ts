@@ -1,9 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import dotenv from "dotenv";
 import { nodePolyfills } from "vite-plugin-node-polyfills";
-
-dotenv.config();
 
 export default defineConfig({
   plugins: [
@@ -25,12 +22,12 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: "index.html",
-        contentScript: "public/contentScript.js",
+        background: "src/background.ts",
       },
       output: {
         entryFileNames: (chunkInfo) => {
-          return chunkInfo.name === "contentScript"
-            ? "[name].js"
+          return chunkInfo.name === "background"
+            ? "background.js"
             : "assets/[name]-[hash].js";
         },
       },

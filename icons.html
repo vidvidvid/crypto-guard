@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Generate Extension Icons</title>
+  </head>
+  <body>
+    <h1>Extension Icons</h1>
+    <div id="icons"></div>
+    <script>
+      const sizes = [16, 48, 128];
+      const iconContainer = document.getElementById("icons");
+
+      sizes.forEach((size) => {
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d");
+
+        // Draw a simple icon (a filled circle with a border)
+        ctx.fillStyle = "#FF0000"; // Changed to red
+        ctx.beginPath();
+        ctx.arc(size / 2, size / 2, size / 2 - 1, 0, 2 * Math.PI);
+        ctx.fill();
+
+        ctx.strokeStyle = "#B22222"; // Changed to a darker red
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Add text
+        ctx.fillStyle = "white";
+        ctx.font = `bold ${size / 3}px Arial`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("CST", size / 2, size / 2);
+
+        // Create download link
+        const link = document.createElement("a");
+        link.download = `icon${size}.png`;
+        link.href = canvas.toDataURL("image/png");
+        link.textContent = `Download ${size}x${size} icon`;
+
+        iconContainer.appendChild(canvas);
+        iconContainer.appendChild(link);
+        iconContainer.appendChild(document.createElement("br"));
+      });
+    </script>
+  </body>
+</html>
