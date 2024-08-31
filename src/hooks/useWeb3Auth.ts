@@ -7,7 +7,6 @@ import {
   UserInfo,
 } from "@web3auth/base";
 import { EthereumPrivateKeyProvider } from "@web3auth/ethereum-provider";
-import { BrowserProvider, Signer } from "ethers";
 import { createOrUpdateUser } from "../supabaseClient";
 
 const clientId = import.meta.env.VITE_WEB3AUTH_CLIENT_ID || "";
@@ -22,12 +21,6 @@ const chainConfig = {
   tickerName: "Ethereum",
 };
 
-declare global {
-  interface Window {
-    ethereum?: any;
-  }
-}
-
 const privateKeyProvider = new EthereumPrivateKeyProvider({
   config: { chainConfig },
 });
@@ -40,7 +33,6 @@ export function useWeb3Auth() {
   const [ethAddress, setEthAddress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
-  const [isMetaMaskAvailable, setIsMetaMaskAvailable] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -65,88 +57,31 @@ export function useWeb3Auth() {
     };
 
     init();
-    checkMetaMaskAvailability();
   }, []);
 
-  const checkMetaMaskAvailability = async () => {
-    // Method 1: Check for ethereum object
-    if (typeof window.ethereum !== "undefined" && window.ethereum.isMetaMask) {
-      setIsMetaMaskAvailable(true);
-      return;
-    }
-
-    // Method 2: Try to use chrome.management API (may not work in all contexts)
-    if (chrome.management) {
-      try {
-        const extensions = await chrome.management.getAll();
-        console.log("extensions", extensions);
-        const isMetaMaskInstalled = extensions.some(
-          (ext) => ext.name === "MetaMask"
-        );
-        if (isMetaMaskInstalled) {
-          setIsMetaMaskAvailable(true);
-          return;
-        }
-      } catch (error) {
-        console.error("Failed to check extensions:", error);
-      }
-    }
-
-    // Method 3: Attempt to communicate with MetaMask
-    try {
-      await chrome.runtime.sendMessage("nkbihfbeogaeaoehlefnkodbefgpgknn", {
-        method: "eth_requestAccounts",
-      });
-      setIsMetaMaskAvailable(true);
-    } catch (error) {
-      console.error("MetaMask communication failed:", error);
-      setIsMetaMaskAvailable(false);
-    }
-  };
-
-  const loginWithWeb3Auth = async () => {
-    if (!web3auth || !isInitialized) {
-      setError("Web3Auth not initialized yet. Please try again in a moment.");
+  const login = async () => {
+    if (!web3auth) {
+      setError("Web3Auth not initialized yet");
       return;
     }
     try {
       const web3authProvider = await web3auth.connect();
       setProvider(web3authProvider);
-      const user = await web3auth.getUserInfo();
-      setUserData(user as UserInfo);
-      const ethersProvider = new BrowserProvider(web3authProvider as any);
-      const signer = await ethersProvider.getSigner();
-      const address = await signer.getAddress();
-      setEthAddress(address);
-      await createOrUpdateUser(user.email || address, address);
-      setLoggedIn(true);
-      setError(null);
+      if (web3authProvider) {
+        const user = await web3auth.getUserInfo();
+        setUserData(user as UserInfo);
+        const address = await web3authProvider.request({
+          method: "eth_accounts",
+        });
+        const ethAddress = Array.isArray(address) ? address[0] : address;
+        setEthAddress(ethAddress);
+        await createOrUpdateUser(user.email || ethAddress, ethAddress);
+        setLoggedIn(true);
+        setError(null);
+      }
     } catch (error) {
-      console.error("Web3Auth login error:", error);
-      setError("Failed to login with Web3Auth: " + (error as Error).message);
-    }
-  };
-
-  const loginWithMetamask = async () => {
-    if (!isMetaMaskAvailable) {
-      setError(
-        "MetaMask is not available. Please install MetaMask and try again."
-      );
-      return;
-    }
-
-    try {
-      await window.ethereum.request({ method: "eth_requestAccounts" });
-      const provider = new BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-      const address = await signer.getAddress();
-      setEthAddress(address);
-      await createOrUpdateUser(address, address);
-      setLoggedIn(true);
-      setError(null);
-    } catch (error) {
-      console.error("MetaMask login error:", error);
-      setError("Failed to login with MetaMask: " + (error as Error).message);
+      console.error("Error logging in:", error);
+      setError("Failed to login: " + (error as Error).message);
     }
   };
 
@@ -168,10 +103,8 @@ export function useWeb3Auth() {
     userData,
     ethAddress,
     error,
-    loginWithWeb3Auth,
-    loginWithMetamask,
-    isInitialized,
-    isMetaMaskAvailable,
+    login,
     logout,
+    isInitialized,
   };
 }

@@ -32,8 +32,11 @@ export default defineConfig({
         },
       },
     },
+    sourcemap: true, // Add this line to generate source maps
   },
   server: {
+    port: 3000, // You can specify a port if needed
+    open: true, // This will open the browser automatically when you run the dev server
     headers: {
       "Content-Security-Policy":
         "script-src 'self' 'unsafe-inline' 'unsafe-eval'; object-src 'self'",

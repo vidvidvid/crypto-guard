@@ -9,12 +9,10 @@ function App() {
     loggedIn,
     userData,
     error: authError,
-    loginWithWeb3Auth,
-    loginWithMetamask,
+    login,
     logout,
     ethAddress,
     isInitialized,
-    isMetaMaskAvailable,
   } = useWeb3Auth();
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   console.log("ethAddress", ethAddress);
@@ -40,10 +38,10 @@ function App() {
     }
   };
 
-  const handleMetamaskLogin = async () => {
+  const handleLogin = async () => {
     setIsLoggingIn(true);
     try {
-      await loginWithMetamask();
+      await login();
     } finally {
       setIsLoggingIn(false);
     }
@@ -77,21 +75,9 @@ function App() {
           <button onClick={logout}>Logout</button>
         </>
       ) : (
-        <>
-          <button onClick={loginWithWeb3Auth} disabled={isLoggingIn}>
-            Login with Web3Auth
-          </button>
-          {isMetaMaskAvailable ? (
-            <button onClick={handleMetamaskLogin} disabled={isLoggingIn}>
-              {isLoggingIn ? "Connecting..." : "Login with MetaMask"}
-            </button>
-          ) : (
-            <p>
-              MetaMask not detected. Please install MetaMask to use this
-              feature.
-            </p>
-          )}
-        </>
+        <button onClick={handleLogin} disabled={isLoggingIn}>
+          {isLoggingIn ? "Logging in..." : "Login with Web3Auth"}
+        </button>
       )}
     </div>
   );

@@ -3,7 +3,7 @@
   "name": "Crypto Scam Tracker",
   "version": "1.0",
   "description": "Track and flag potentially scammy crypto sites",
-  "permissions": ["activeTab", "storage", "tabs", "management", "scripting"],
+  "permissions": ["activeTab", "storage", "tabs"],
   "host_permissions": ["https://*/*", "http://*/*"],
   "action": {
     "default_popup": "index.html",
@@ -37,8 +37,5 @@
       ],
       "matches": ["<all_urls>"]
     }
-  ],
-  "externally_connectable": {
-    "ids": ["nkbihfbeogaeaoehlefnkodbefgpgknn"]
-  }
+  ]
 }
