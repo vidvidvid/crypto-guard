@@ -93,10 +93,14 @@ export async function getFlagCount(url: string) {
     .eq("url", url)
     .eq("is_flagged", true);
 
+  console.log("Flag count data:", data);
+
   if (error) {
     console.error("Error getting flag count:", error);
     throw new Error(`Failed to get flag count: ${error.message}`);
   }
-  console.log("Flag count retrieved:", data?.length);
-  return data?.length || 0;
+
+  const count = data ? data.length : 0;
+  console.log("Flag count retrieved:", count);
+  return count;
 }

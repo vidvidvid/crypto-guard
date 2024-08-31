@@ -1,219 +1,97 @@
+import { useState } from "react";
 import "./App.css";
-import { useEffect, useState } from "react";
-import { Web3Auth } from "@web3auth/modal";
-import {
-  CHAIN_NAMESPACES,
-  IProvider,
-  WEB3AUTH_NETWORK,
-  UserInfo,
-} from "@web3auth/base";
-import { EthereumPrivateKeyProvider } from "@web3auth/ethereum-provider";
-import {
-  getFlaggedSites,
-  flagSite,
-  unflagSite,
-  createOrUpdateUser,
-  getFlagCount,
-} from "./supabaseClient";
-
-const clientId = import.meta.env.VITE_WEB3AUTH_CLIENT_ID || "";
-
-const chainConfig = {
-  chainNamespace: CHAIN_NAMESPACES.EIP155,
-  chainId: "0xaa36a7",
-  rpcTarget: import.meta.env.VITE_RPC_TARGET,
-  displayName: "Ethereum Sepolia Testnet",
-  blockExplorerUrl: "https://sepolia.etherscan.io",
-  ticker: "ETH",
-  tickerName: "Ethereum",
-};
-
-const privateKeyProvider = new EthereumPrivateKeyProvider({
-  config: { chainConfig },
-});
+import { useWeb3Auth } from "./hooks/useWeb3Auth";
+import { useUrl } from "./hooks/useUrl";
+import { useFlaggedSites } from "./hooks/useFlaggedSites";
 
 function App() {
-  const [web3auth, setWeb3auth] = useState<Web3Auth | null>(null);
-  const [provider, setProvider] = useState<IProvider | null>(null);
-  const [loggedIn, setLoggedIn] = useState(false);
-  const [userData, setUserData] = useState<UserInfo | null>(null);
-  const [currentUrl, setCurrentUrl] = useState<string>("");
-  const [flaggedSites, setFlaggedSites] = useState<any[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
-  const [isValidUrl, setIsValidUrl] = useState(false);
-  const [flagCount, setFlagCount] = useState<number>(0);
+  const {
+    loggedIn,
+    userData,
+    error: authError,
+    loginWithWeb3Auth,
+    loginWithMetamask,
+    logout,
+    ethAddress,
+    isInitialized,
+    isMetaMaskAvailable,
+  } = useWeb3Auth();
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  console.log("ethAddress", ethAddress);
+  const { currentUrl, isValidUrl, flagCount, setFlagCount } = useUrl();
+  const {
+    error: flagError,
+    message,
+    handleFlagSite,
+    handleUnflagSite,
+  } = useFlaggedSites();
 
-  useEffect(() => {
-    const init = async () => {
-      try {
-        const web3auth = new Web3Auth({
-          clientId,
-          web3AuthNetwork: WEB3AUTH_NETWORK.SAPPHIRE_DEVNET,
-          chainConfig,
-          privateKeyProvider,
-        });
-
-        setWeb3auth(web3auth);
-
-        await web3auth.initModal();
-
-        if (web3auth.provider) {
-          setProvider(web3auth.provider);
-          const user = await web3auth.getUserInfo();
-          setUserData(user as UserInfo);
-          await createOrUpdateUser(user.email as string, user.email as string);
-          setLoggedIn(true);
-        }
-      } catch (error) {
-        console.error("Error during Web3Auth initialization:", error);
-        setError("Failed to initialize Web3Auth");
-      }
-    };
-
-    init();
-  }, []);
-
-  useEffect(() => {
-    if (chrome.tabs) {
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (tabs[0] && tabs[0].url) {
-          setCurrentUrl(tabs[0].url);
-          setIsValidUrl(isValidFlagUrl(tabs[0].url));
-        }
-      });
+  const onFlagSite = async () => {
+    if (ethAddress) {
+      const newCount = await handleFlagSite(currentUrl, ethAddress);
+      if (newCount !== null) setFlagCount(newCount);
     }
-
-    loadFlaggedSites();
-  }, []);
-
-  const isValidFlagUrl = (url: string) => {
-    return url.startsWith("http://") || url.startsWith("https://");
   };
 
-  const loadFlaggedSites = async () => {
+  const onUnflagSite = async () => {
+    if (ethAddress) {
+      const newCount = await handleUnflagSite(currentUrl, ethAddress);
+      if (newCount !== null) setFlagCount(newCount);
+    }
+  };
+
+  const handleMetamaskLogin = async () => {
+    setIsLoggingIn(true);
     try {
-      const sites = await getFlaggedSites();
-      setFlaggedSites(sites);
-    } catch (error) {
-      console.error("Error loading flagged sites:", error);
-      setError("Failed to load flagged sites");
+      await loginWithMetamask();
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
-  const login = async () => {
-    if (!web3auth) {
-      setError("Web3Auth not initialized yet");
-      return;
-    }
-    try {
-      const web3authProvider = await web3auth.connect();
-      setProvider(web3authProvider);
-      const user = await web3auth.getUserInfo();
-      setUserData(user as UserInfo);
-
-      if (!user.email) {
-        throw new Error("User email not available");
-      }
-
-      await createOrUpdateUser(user.email, user.email);
-      setLoggedIn(true);
-      setError(null);
-    } catch (error) {
-      console.error("Login error:", error);
-      setError("Failed to login: " + (error as Error).message);
-    }
-  };
-
-  const logout = async () => {
-    if (!web3auth) {
-      setError("Web3Auth not initialized yet");
-      return;
-    }
-    try {
-      await web3auth.logout();
-      setProvider(null);
-      setLoggedIn(false);
-      setUserData(null);
-      setError(null);
-    } catch (error) {
-      console.error("Logout error:", error);
-      setError("Failed to logout");
-    }
-  };
-
-  const handleFlagSite = async () => {
-    setError(null);
-    setMessage(null);
-
-    if (!userData?.email || !currentUrl || !isValidUrl) {
-      setError("Cannot flag site: missing data or invalid URL");
-      return;
-    }
-
-    try {
-      await flagSite(currentUrl, userData.email);
-      const newCount = await getFlagCount(currentUrl);
-      setFlagCount(newCount);
-      setMessage(`Site flagged successfully! Total flags: ${newCount}`);
-      await loadFlaggedSites();
-    } catch (error) {
-      console.error("Error flagging site:", error);
-      setError("Failed to flag site: " + (error as Error).message);
-    }
-  };
-
-  const handleUnflagSite = async () => {
-    setError(null);
-    setMessage(null);
-
-    if (!userData?.email || !currentUrl || !isValidUrl) {
-      setError("Cannot unflag site: missing data or invalid URL");
-      return;
-    }
-
-    try {
-      await unflagSite(currentUrl, userData.email);
-      const newCount = await getFlagCount(currentUrl);
-      setFlagCount(newCount);
-      setMessage(`Site unflagged successfully! Total flags: ${newCount}`);
-      await loadFlaggedSites();
-    } catch (error) {
-      console.error("Error unflagging site:", error);
-      setError("Failed to unflag site: " + (error as Error).message);
-    }
-  };
+  if (!isInitialized) {
+    return <div>Initializing Web3Auth...</div>;
+  }
 
   return (
     <div className='App'>
       <h1>Crypto Scam Tracker</h1>
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      {(authError || flagError) && (
+        <p style={{ color: "red" }}>{authError || flagError}</p>
+      )}
       {message && <p style={{ color: "green" }}>{message}</p>}
       {loggedIn ? (
         <>
-          <p>Logged in as: {userData?.email}</p>
+          <p>Logged in as: {userData?.email || ethAddress}</p>
+          <p>Ethereum Address: {ethAddress}</p>
           <p>Current URL: {currentUrl}</p>
           <p>Flag Count: {flagCount}</p>
           {isValidUrl ? (
             <>
-              <button onClick={handleFlagSite}>Flag Current Site</button>
-              <button onClick={handleUnflagSite}>Unflag Current Site</button>
+              <button onClick={onFlagSite}>Flag Current Site</button>
+              <button onClick={onUnflagSite}>Unflag Current Site</button>
             </>
           ) : (
             <p>Cannot flag this type of URL</p>
           )}
           <button onClick={logout}>Logout</button>
-          <h2>Flagged Sites:</h2>
-          <ul>
-            {flaggedSites.map((site, index) => (
-              <li key={index}>
-                {site.url} (flagged by: {site.flagged_by})
-              </li>
-            ))}
-          </ul>
         </>
       ) : (
-        <button onClick={login}>Login</button>
+        <>
+          <button onClick={loginWithWeb3Auth} disabled={isLoggingIn}>
+            Login with Web3Auth
+          </button>
+          {isMetaMaskAvailable ? (
+            <button onClick={handleMetamaskLogin} disabled={isLoggingIn}>
+              {isLoggingIn ? "Connecting..." : "Login with MetaMask"}
+            </button>
+          ) : (
+            <p>
+              MetaMask not detected. Please install MetaMask to use this
+              feature.
+            </p>
+          )}
+        </>
       )}
     </div>
   );
