@@ -5,19 +5,114 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-export async function createOrUpdateUser(userId: string, email: string) {
-  console.log(`Creating/updating user: ${userId}, email: ${email}`);
+export async function createOrUpdateUser(
+  ethAddress: string,
+  email: string | undefined
+) {
   const { data, error } = await supabase
     .from("users")
-    .upsert({ id: userId, email }, { onConflict: "id" });
+    .upsert(
+      { eth_address: ethAddress.toLowerCase(), email },
+      { onConflict: "eth_address" }
+    )
+    .select()
+    .single();
 
   if (error) {
-    console.error("Error creating/updating user:", error);
-    console.error("Error details:", JSON.stringify(error, null, 2));
-    throw new Error(`Failed to create/update user: ${error.message}`);
+    console.error("Error upserting user:", error);
+    throw new Error(`Failed to upsert user: ${error.message}`);
   }
-  console.log("User created/updated successfully:", data);
+
   return data;
+}
+
+export async function rateSite(
+  url: string,
+  ethAddress: string,
+  isSafe: boolean
+): Promise<any> {
+  ethAddress = ethAddress.toLowerCase();
+
+  // Direct query to check if the user exists
+  const { data: userData, error: userCheckError } = await supabase
+    .from("users")
+    .select("*")
+    .eq("eth_address", ethAddress)
+    .single();
+
+  if (userCheckError || !userData) {
+    console.error("User does not exist in the database:", userCheckError);
+    throw new Error("User does not exist in the database.");
+  } else {
+    console.log("User exists:", userData);
+  }
+
+  // Proceed to rate the site
+  const { data, error } = await supabase
+    .from("flagged_sites")
+    .upsert(
+      { url, flagged_by: ethAddress, is_safe: isSafe },
+      { onConflict: "url,flagged_by" }
+    )
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error rating site:", error);
+    throw new Error(`Failed to rate site: ${error.message}`);
+  }
+
+  return data;
+}
+
+export async function getUserRating(url: string, ethAddress: string) {
+  const { data, error } = await supabase
+    .from("flagged_sites")
+    .select("is_safe")
+    .eq("url", url)
+    .eq("flagged_by", ethAddress.toLowerCase())
+    .single();
+
+  if (error) {
+    if (error.code === "PGRST116") {
+      return null; // No rating found
+    }
+    console.error("Error getting user rating:", error);
+    throw new Error(`Failed to get user rating: ${error.message}`);
+  }
+
+  return data.is_safe;
+}
+
+export async function getFlaggedSites() {
+  const { data, error } = await supabase
+    .from("flagged_sites")
+    .select("url, flagged_by, is_safe");
+
+  if (error) {
+    console.error("Error getting flagged sites:", error);
+    throw new Error(`Failed to get flagged sites: ${error.message}`);
+  }
+
+  return data;
+}
+
+export async function getSiteRatings(url: string) {
+  const { data, error } = await supabase
+    .from("flagged_sites")
+    .select("is_safe")
+    .eq("url", url);
+
+  if (error) {
+    console.error("Error getting site ratings:", error);
+    throw new Error(`Failed to get site ratings: ${error.message}`);
+  }
+
+  const safeCount = data.filter((rating) => rating.is_safe === true).length;
+  const unsafeCount = data.filter((rating) => rating.is_safe === false).length;
+  const totalRatings = data.length;
+
+  return { safeCount, unsafeCount, totalRatings };
 }
 
 export async function getUser(userId: string) {
@@ -34,73 +129,4 @@ export async function getUser(userId: string) {
   }
   console.log("User retrieved:", data);
   return data;
-}
-
-export async function flagSite(url: string, userId: string) {
-  console.log(`Flagging site: ${url} by user: ${userId}`);
-  const { data, error } = await supabase
-    .from("flagged_sites")
-    .upsert(
-      { url, flagged_by: userId, is_flagged: true },
-      { onConflict: "url,flagged_by" }
-    )
-    .select();
-
-  if (error) {
-    console.error("Error flagging site:", error);
-    throw new Error(`Failed to flag site: ${error.message}`);
-  }
-  console.log("Site flagged successfully:", data);
-  return data;
-}
-
-export async function unflagSite(url: string, userId: string) {
-  console.log(`Unflagging site: ${url} by user: ${userId}`);
-  const { data, error } = await supabase
-    .from("flagged_sites")
-    .update({ is_flagged: false })
-    .match({ url, flagged_by: userId })
-    .select();
-
-  if (error) {
-    console.error("Error unflagging site:", error);
-    throw new Error(`Failed to unflag site: ${error.message}`);
-  }
-  console.log("Site unflagged successfully:", data);
-  return data;
-}
-
-export async function getFlaggedSites() {
-  console.log("Getting flagged sites from Supabase...");
-  const { data, error } = await supabase
-    .from("flagged_sites")
-    .select("url, flagged_by")
-    .eq("is_flagged", true);
-
-  if (error) {
-    console.error("Error getting flagged sites:", error);
-    throw new Error(`Failed to get flagged sites: ${error.message}`);
-  }
-  console.log("Flagged sites retrieved:", data);
-  return data;
-}
-
-export async function getFlagCount(url: string) {
-  console.log(`Getting flag count for: ${url}`);
-  const { data, error } = await supabase
-    .from("flagged_sites")
-    .select("url")
-    .eq("url", url)
-    .eq("is_flagged", true);
-
-  console.log("Flag count data:", data);
-
-  if (error) {
-    console.error("Error getting flag count:", error);
-    throw new Error(`Failed to get flag count: ${error.message}`);
-  }
-
-  const count = data ? data.length : 0;
-  console.log("Flag count retrieved:", count);
-  return count;
 }

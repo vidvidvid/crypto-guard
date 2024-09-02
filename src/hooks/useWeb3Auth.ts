@@ -7,7 +7,7 @@ import {
   UserInfo,
 } from "@web3auth/base";
 import { EthereumPrivateKeyProvider } from "@web3auth/ethereum-provider";
-import { createOrUpdateUser } from "../supabaseClient";
+import { createOrUpdateUser, supabase } from "../supabaseClient";
 
 const clientId = import.meta.env.VITE_WEB3AUTH_CLIENT_ID || "";
 
@@ -30,6 +30,7 @@ export function useWeb3Auth() {
   const [provider, setProvider] = useState<IProvider | null>(null);
   const [loggedIn, setLoggedIn] = useState(false);
   const [userData, setUserData] = useState<UserInfo | null>(null);
+  console.log("userData", userData);
   const [ethAddress, setEthAddress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -50,6 +51,9 @@ export function useWeb3Auth() {
         console.log("Web3Auth initialized");
 
         setIsInitialized(true);
+
+        // Attempt automatic login
+        await attemptAutomaticLogin(web3auth);
       } catch (error) {
         console.error("Error during Web3Auth initialization:", error);
         setError("Failed to initialize Web3Auth");
@@ -59,6 +63,42 @@ export function useWeb3Auth() {
     init();
   }, []);
 
+  const attemptAutomaticLogin = async (web3auth: Web3Auth) => {
+    try {
+      const web3authProvider = await web3auth.connect();
+      if (web3authProvider) {
+        await handleLoginSuccess(web3auth, web3authProvider);
+      }
+    } catch (error) {
+      console.error("Automatic login failed:", error);
+      // Don't set an error state here, as this is an automatic attempt
+    }
+  };
+
+  const handleLoginSuccess = async (
+    web3auth: Web3Auth,
+    web3authProvider: IProvider
+  ) => {
+    setProvider(web3authProvider);
+    const user = await web3auth.getUserInfo();
+    setUserData(user as UserInfo);
+    const address = await web3authProvider.request({
+      method: "eth_accounts",
+    });
+    const ethAddress = Array.isArray(address) ? address[0] : address;
+    setEthAddress(ethAddress);
+
+    try {
+      // Create or update user in Supabase
+      await createOrUpdateUser(ethAddress, user.email);
+      setLoggedIn(true);
+      setError(null);
+    } catch (error) {
+      console.error("Error creating/updating user:", error);
+      setError("Failed to create/update user: " + (error as Error).message);
+    }
+  };
+
   const login = async () => {
     if (!web3auth) {
       setError("Web3Auth not initialized yet");
@@ -66,18 +106,8 @@ export function useWeb3Auth() {
     }
     try {
       const web3authProvider = await web3auth.connect();
-      setProvider(web3authProvider);
       if (web3authProvider) {
-        const user = await web3auth.getUserInfo();
-        setUserData(user as UserInfo);
-        const address = await web3authProvider.request({
-          method: "eth_accounts",
-        });
-        const ethAddress = Array.isArray(address) ? address[0] : address;
-        setEthAddress(ethAddress);
-        await createOrUpdateUser(user.email || ethAddress, ethAddress);
-        setLoggedIn(true);
-        setError(null);
+        await handleLoginSuccess(web3auth, web3authProvider);
       }
     } catch (error) {
       console.error("Error logging in:", error);
