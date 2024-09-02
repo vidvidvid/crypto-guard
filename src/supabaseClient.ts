@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { extractDomain } from "./utils/extractDomain";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -32,8 +33,9 @@ export async function rateSite(
   isSafe: boolean
 ): Promise<any> {
   ethAddress = ethAddress.toLowerCase();
+  const domain = extractDomain(url);
 
-  // Direct query to check if the user exists
+  // Ensure the user exists
   const { data: userData, error: userCheckError } = await supabase
     .from("users")
     .select("*")
@@ -43,15 +45,13 @@ export async function rateSite(
   if (userCheckError || !userData) {
     console.error("User does not exist in the database:", userCheckError);
     throw new Error("User does not exist in the database.");
-  } else {
-    console.log("User exists:", userData);
   }
 
-  // Proceed to rate the site
+  // Proceed to rate the domain
   const { data, error } = await supabase
     .from("flagged_sites")
     .upsert(
-      { url, flagged_by: ethAddress, is_safe: isSafe },
+      { url: domain, flagged_by: ethAddress, is_safe: isSafe },
       { onConflict: "url,flagged_by" }
     )
     .select()
@@ -66,10 +66,11 @@ export async function rateSite(
 }
 
 export async function getUserRating(url: string, ethAddress: string) {
+  const domain = extractDomain(url);
   const { data, error } = await supabase
     .from("flagged_sites")
     .select("is_safe")
-    .eq("url", url)
+    .eq("url", domain)
     .eq("flagged_by", ethAddress.toLowerCase())
     .single();
 
@@ -98,10 +99,11 @@ export async function getFlaggedSites() {
 }
 
 export async function getSiteRatings(url: string) {
+  const domain = extractDomain(url);
   const { data, error } = await supabase
     .from("flagged_sites")
     .select("is_safe")
-    .eq("url", url);
+    .eq("url", domain);
 
   if (error) {
     console.error("Error getting site ratings:", error);

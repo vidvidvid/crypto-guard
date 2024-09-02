@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { extractDomain } from "./utils/extractDomain";
 
 console.log("Background script starting...");
 
@@ -29,13 +30,15 @@ function setIcon(tabId: number, flagged: boolean, count: number) {
 }
 
 async function checkUrl(tabId: number, url: string) {
-  console.log(`Checking URL: ${url} for tab ${tabId}`);
+  const domain = extractDomain(url);
+  console.log(`Checking Domain: ${domain} for tab ${tabId}`);
+
   try {
     const { data, error } = await supabase
       .from("flagged_sites")
       .select("url")
-      .eq("url", url)
-      .eq("is_safe", false); // Change this line to check for unsafe sites
+      .eq("url", domain)
+      .eq("is_safe", false);
 
     if (error) {
       console.error("Error checking flagged sites:", error);

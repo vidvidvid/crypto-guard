@@ -25,6 +25,7 @@ import {
   createOrUpdateUser,
 } from "./supabaseClient";
 import Loader from "./components/Loader";
+import { extractDomain } from "./utils/extractDomain";
 
 function App() {
   const {
@@ -51,11 +52,12 @@ function App() {
     if (chrome.tabs) {
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         if (tabs[0] && tabs[0].url) {
-          setCurrentUrl(tabs[0].url);
+          const domain = extractDomain(tabs[0].url);
+          setCurrentUrl(domain);
           setIsValidUrl(isValidFlagUrl(tabs[0].url));
-          loadSiteRatings(tabs[0].url);
+          loadSiteRatings(domain);
           if (ethAddress) {
-            loadUserRating(tabs[0].url, ethAddress);
+            loadUserRating(domain, ethAddress);
           }
         }
       });
