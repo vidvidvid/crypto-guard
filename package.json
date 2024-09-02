@@ -16,6 +16,7 @@
     "@chakra-ui/react": "^2.8.2",
     "@emotion/react": "^11.13.3",
     "@emotion/styled": "^11.13.0",
+    "@ethsign/sp-sdk": "^0.7.2",
     "@supabase/supabase-js": "^2.45.2",
     "@web3auth/base": "^8.12.2",
     "@web3auth/ethereum-provider": "^8.12.3",
