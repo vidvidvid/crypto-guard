@@ -3,16 +3,10 @@ export function extractDomain(url: string) {
 
   // Remove protocol (http, https, etc.)
   if (url.indexOf("://") > -1) {
-    domain = url.split("/")[2];
+    domain = url.split("/")[2]; // Get everything between '://' and the first '/'
   } else {
-    domain = url.split("/")[0];
+    domain = url.split("/")[0]; // Handle URLs without protocol
   }
-
-  // Remove port number if present
-  domain = domain.split(":")[0];
-
-  // Remove 'www.' prefix if present
-  domain = domain.replace(/^www\./, "");
 
   return domain;
 }
