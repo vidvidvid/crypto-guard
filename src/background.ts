@@ -35,7 +35,7 @@ async function checkUrl(tabId: number, url: string) {
       .from("flagged_sites")
       .select("url")
       .eq("url", url)
-      .eq("is_flagged", true);
+      .eq("is_safe", false); // Change this line to check for unsafe sites
 
     if (error) {
       console.error("Error checking flagged sites:", error);
