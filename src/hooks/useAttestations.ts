@@ -6,24 +6,36 @@ import {
   SpMode,
 } from "@ethsign/sp-sdk";
 import { useWeb3Auth } from "./useWeb3Auth";
-
-const { privateKeyToAccount } = require("viem/accounts");
+import { privateKeyToAccount } from "viem/accounts";
 
 export function useAttestations() {
-  const [client, setClient] = useState<SignProtocolClient>();
+  const [client, setClient] = useState<SignProtocolClient | null>(null);
   const [indexService] = useState(new IndexService("testnet"));
   const { provider, ethAddress } = useWeb3Auth();
 
   useEffect(() => {
     const initializeClient = async () => {
       if (provider) {
-        const privateKey = await provider.request({
+        let privateKey = (await provider.request({
           method: "eth_private_key",
-        });
+        })) as string;
+
+        console.log("privateKey", privateKey);
+
+        // Ensure the private key is in the correct format
+        if (!privateKey.startsWith("0x")) {
+          privateKey = `0x${privateKey}`;
+        }
+        console.log("privateKey.length", privateKey.length);
+
+        if (privateKey.length !== 66) {
+          console.error("Invalid private key length:", privateKey.length);
+          return;
+        }
 
         const client = new SignProtocolClient(SpMode.OnChain, {
           chain: EvmChains.arbitrumSepolia,
-          account: privateKeyToAccount(privateKey),
+          account: privateKeyToAccount(privateKey as `0x${string}`),
         });
 
         setClient(client);

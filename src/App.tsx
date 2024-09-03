@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Box,
   Button,
@@ -11,10 +11,12 @@ import {
   StatLabel,
   StatNumber,
   StatGroup,
+  Checkbox, // Import Checkbox
 } from "@chakra-ui/react";
 import Loader from "./components/Loader";
 import { useWeb3Auth } from "./hooks/useWeb3Auth";
 import { useSiteRatings } from "./hooks/useSiteRatings";
+import { useAttestations } from "./hooks/useAttestations"; // Import useAttestations hook
 import { SiteRatingButtons } from "./components/SiteRatingButtons";
 import { FlaggedSitesList } from "./components/FlaggedSitesList";
 import { createOrUpdateUser, rateSite } from "./supabaseClient";
@@ -41,6 +43,8 @@ function App() {
     loadSiteRatings,
   } = useSiteRatings(ethAddress);
 
+  const { createSafetyRatingAttestation } = useAttestations(); // Destructure the attestation function
+  const [createAttestation, setCreateAttestation] = useState(false); // Add state for the checkbox
   const toast = useToast();
 
   const handleRateSite = async (isSafe: boolean) => {
@@ -67,15 +71,36 @@ function App() {
       );
       setUserRating(updatedRating.is_safe);
 
-      toast({
-        title: "Success",
-        description: `Site rated as ${
-          isSafe ? "safe" : "unsafe"
-        } successfully!`,
-        status: "success",
-        duration: 3000,
-        isClosable: true,
-      });
+      const attestationSafetyRatingId = import.meta.env
+        .VITE_ATTESTATION_SAFETY_RATING_ID;
+
+      // Create an attestation if the checkbox is selected
+      if (createAttestation) {
+        await createSafetyRatingAttestation(
+          attestationSafetyRatingId,
+          currentUrl,
+          isSafe
+        );
+        toast({
+          title: "Success",
+          description: `Site rated as ${
+            isSafe ? "safe" : "unsafe"
+          } successfully and attestation created!`,
+          status: "success",
+          duration: 3000,
+          isClosable: true,
+        });
+      } else {
+        toast({
+          title: "Success",
+          description: `Site rated as ${
+            isSafe ? "safe" : "unsafe"
+          } successfully!`,
+          status: "success",
+          duration: 3000,
+          isClosable: true,
+        });
+      }
 
       await loadFlaggedSites();
       await loadSiteRatings(currentUrl);
@@ -107,10 +132,19 @@ function App() {
             <Text>Logged in as: {userData?.email || ethAddress}</Text>
             <Text>Current URL: {currentUrl}</Text>
             {isValidUrl ? (
-              <SiteRatingButtons
-                userRating={userRating}
-                handleRateSite={handleRateSite}
-              />
+              <>
+                <SiteRatingButtons
+                  userRating={userRating}
+                  handleRateSite={handleRateSite}
+                />
+                <Checkbox
+                  mt={2}
+                  isChecked={createAttestation}
+                  onChange={(e) => setCreateAttestation(e.target.checked)}
+                >
+                  Create attestation on blockchain
+                </Checkbox>
+              </>
             ) : (
               <Text>Cannot rate this type of URL</Text>
             )}
