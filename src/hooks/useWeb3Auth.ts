@@ -30,7 +30,6 @@ export function useWeb3Auth() {
   const [provider, setProvider] = useState<IProvider | null>(null);
   const [loggedIn, setLoggedIn] = useState(false);
   const [userData, setUserData] = useState<UserInfo | null>(null);
-  console.log("userData", userData);
   const [ethAddress, setEthAddress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);

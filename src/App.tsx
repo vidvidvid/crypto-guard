@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   Box,
   Button,
@@ -11,14 +11,14 @@ import {
   StatLabel,
   StatNumber,
   StatGroup,
-  Checkbox, // Import Checkbox
+  Checkbox,
+  Textarea,
 } from "@chakra-ui/react";
 import Loader from "./components/Loader";
 import { useWeb3Auth } from "./hooks/useWeb3Auth";
 import { useSiteRatings } from "./hooks/useSiteRatings";
-import { useAttestations } from "./hooks/useAttestations"; // Import useAttestations hook
+import { useAttestations } from "./hooks/useAttestations";
 import { SiteRatingButtons } from "./components/SiteRatingButtons";
-import { FlaggedSitesList } from "./components/FlaggedSitesList";
 import { createOrUpdateUser, rateSite } from "./supabaseClient";
 
 function App() {
@@ -34,7 +34,6 @@ function App() {
 
   const {
     currentUrl,
-    flaggedSites,
     isValidUrl,
     siteRatings,
     userRating,
@@ -43,9 +42,87 @@ function App() {
     loadSiteRatings,
   } = useSiteRatings(ethAddress);
 
-  const { createSafetyRatingAttestation } = useAttestations(); // Destructure the attestation function
-  const [createAttestation, setCreateAttestation] = useState(false); // Add state for the checkbox
+  const {
+    createAttestation,
+    getAttestations,
+    loading,
+    error: attestationError,
+  } = useAttestations();
+
   const toast = useToast();
+  const [newComment, setNewComment] = useState("");
+  const [shouldCreateAttestation, setShouldCreateAttestation] = useState(false);
+
+  const safetyRatingId = import.meta.env.VITE_ATTESTATION_SAFETY_RATING_ID;
+  console.log("safetyRatingId", safetyRatingId);
+
+  const [comments, setComments] = useState<any[]>([]);
+
+  const SAFETY_RATING_SCHEMA_ID = import.meta.env
+    .VITE_ATTESTATION_SAFETY_RATING_ID;
+  const COMMENT_SCHEMA_ID = import.meta.env.VITE_ATTESTATION_COMMENT_ID;
+
+  const loadComments = useCallback(async () => {
+    if (!COMMENT_SCHEMA_ID || !currentUrl) return;
+    try {
+      console.log("Loading comments for:", { COMMENT_SCHEMA_ID, currentUrl });
+      const attestations = await getAttestations(COMMENT_SCHEMA_ID, currentUrl);
+      console.log("Fetched comment attestations:", attestations);
+      setComments(attestations || []);
+    } catch (error) {
+      console.error("Error loading comments:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load comments",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  }, [COMMENT_SCHEMA_ID, currentUrl, getAttestations, toast]);
+
+  useEffect(() => {
+    if (currentUrl && COMMENT_SCHEMA_ID) {
+      loadComments();
+    }
+  }, [currentUrl, COMMENT_SCHEMA_ID, loadComments]);
+
+  const handleAddComment = async () => {
+    if (!ethAddress || !currentUrl || !newComment || !COMMENT_SCHEMA_ID) {
+      toast({
+        title: "Error",
+        description: "Missing required information to add comment",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    try {
+      await createAttestation(COMMENT_SCHEMA_ID, currentUrl, {
+        comment: newComment,
+      });
+      setNewComment("");
+      await loadComments();
+      toast({
+        title: "Success",
+        description: "Comment added successfully!",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (error) {
+      console.error("Error adding comment:", error);
+      toast({
+        title: "Error",
+        description: `Failed to add comment: ${(error as Error).message}`,
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  };
 
   const handleRateSite = async (isSafe: boolean) => {
     if (!ethAddress || !currentUrl || !isValidUrl || !userData?.email) {
@@ -60,47 +137,29 @@ function App() {
     }
 
     try {
-      // Ensure the user exists in the database
       await createOrUpdateUser(ethAddress, userData.email);
-
-      // Rate the site
       const updatedRating = await rateSite(
         currentUrl,
-        ethAddress.toLocaleLowerCase(),
+        ethAddress.toLowerCase(),
         isSafe
       );
       setUserRating(updatedRating.is_safe);
 
-      const attestationSafetyRatingId = import.meta.env
-        .VITE_ATTESTATION_SAFETY_RATING_ID;
-
-      // Create an attestation if the checkbox is selected
       if (createAttestation) {
-        await createSafetyRatingAttestation(
-          attestationSafetyRatingId,
-          currentUrl,
-          isSafe
-        );
-        toast({
-          title: "Success",
-          description: `Site rated as ${
-            isSafe ? "safe" : "unsafe"
-          } successfully and attestation created!`,
-          status: "success",
-          duration: 3000,
-          isClosable: true,
-        });
-      } else {
-        toast({
-          title: "Success",
-          description: `Site rated as ${
-            isSafe ? "safe" : "unsafe"
-          } successfully!`,
-          status: "success",
-          duration: 3000,
-          isClosable: true,
+        await createAttestation(SAFETY_RATING_SCHEMA_ID, currentUrl, {
+          isSafe,
         });
       }
+
+      toast({
+        title: "Success",
+        description: `Site rated as ${isSafe ? "safe" : "unsafe"} successfully${
+          shouldCreateAttestation ? " and attestation created" : ""
+        }!`,
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
 
       await loadFlaggedSites();
       await loadSiteRatings(currentUrl);
@@ -108,7 +167,7 @@ function App() {
       console.error("Error rating site:", error);
       toast({
         title: "Error",
-        description: "Failed to rate site: " + (error as Error).message,
+        description: `Failed to rate site: ${(error as Error).message}`,
         status: "error",
         duration: 3000,
         isClosable: true,
@@ -139,8 +198,8 @@ function App() {
                 />
                 <Checkbox
                   mt={2}
-                  isChecked={createAttestation}
-                  onChange={(e) => setCreateAttestation(e.target.checked)}
+                  isChecked={shouldCreateAttestation}
+                  onChange={(e) => setShouldCreateAttestation(e.target.checked)}
                 >
                   Create attestation on blockchain
                 </Checkbox>
@@ -165,12 +224,42 @@ function App() {
               </StatGroup>
             )}
             <Button onClick={logout}>Logout</Button>
-            <FlaggedSitesList flaggedSites={flaggedSites} />
+            {/* <FlaggedSitesList flaggedSites={flaggedSites} /> */}
           </>
         ) : (
           <Button colorScheme='blue' onClick={login}>
             Login
           </Button>
+        )}
+        {loading && <Text>Loading comments...</Text>}
+        {attestationError && <Text color='red.500'>{attestationError}</Text>}
+        {comments.length > 0 ? (
+          <VStack align='stretch' spacing={2}>
+            {comments.map((comment, index) => (
+              <Box key={index} p={2} borderWidth={1} borderRadius='md'>
+                <Text>{comment.data.comment}</Text>
+                <Text fontSize='sm' color='gray.500'>
+                  By: {comment.attester.slice(0, 6)}...
+                  {comment.attester.slice(-4)}
+                </Text>
+              </Box>
+            ))}
+          </VStack>
+        ) : (
+          <Text>No comments yet.</Text>
+        )}
+        {isValidUrl && (
+          <Box mt={4}>
+            <Textarea
+              mt={2}
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              placeholder='Add a comment...'
+            />
+            <Button mt={2} onClick={handleAddComment}>
+              Add Comment
+            </Button>
+          </Box>
         )}
       </VStack>
     </Container>

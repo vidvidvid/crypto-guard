@@ -1,130 +1,127 @@
-import { useState, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
+import axios from "axios";
 import {
-  EvmChains,
-  IndexService,
   SignProtocolClient,
+  IndexService,
   SpMode,
+  EvmChains,
 } from "@ethsign/sp-sdk";
-import { useWeb3Auth } from "./useWeb3Auth";
 import { privateKeyToAccount } from "viem/accounts";
+import { useWeb3Auth } from "./useWeb3Auth";
+
+const BASE_URL = "https://testnet-scan.sign.global/api";
+const CHAIN_ID = "421614"; // Arbitrum Sepolia
 
 export function useAttestations() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [client, setClient] = useState<SignProtocolClient | null>(null);
   const [indexService] = useState(new IndexService("testnet"));
   const { provider, ethAddress } = useWeb3Auth();
 
   useEffect(() => {
     const initializeClient = async () => {
-      if (provider) {
-        let privateKey = (await provider.request({
-          method: "eth_private_key",
-        })) as string;
+      if (provider && ethAddress) {
+        try {
+          let privateKey = (await provider.request({
+            method: "eth_private_key",
+          })) as string;
 
-        console.log("privateKey", privateKey);
+          if (!privateKey.startsWith("0x")) {
+            privateKey = `0x${privateKey}`;
+          }
 
-        // Ensure the private key is in the correct format
-        if (!privateKey.startsWith("0x")) {
-          privateKey = `0x${privateKey}`;
+          if (privateKey.length !== 66) {
+            throw new Error("Invalid private key length");
+          }
+
+          const client = new SignProtocolClient(SpMode.OnChain, {
+            chain: EvmChains.arbitrumSepolia,
+            account: privateKeyToAccount(privateKey as `0x${string}`),
+          });
+
+          setClient(client);
+        } catch (error) {
+          console.error("Error initializing SignProtocolClient:", error);
         }
-        console.log("privateKey.length", privateKey.length);
-
-        if (privateKey.length !== 66) {
-          console.error("Invalid private key length:", privateKey.length);
-          return;
-        }
-
-        const client = new SignProtocolClient(SpMode.OnChain, {
-          chain: EvmChains.arbitrumSepolia,
-          account: privateKeyToAccount(privateKey as `0x${string}`),
-        });
-
-        setClient(client);
       }
     };
 
     initializeClient();
-  }, [provider]);
+  }, [provider, ethAddress]);
 
-  const createSafetyRatingAttestation = async (
-    schemaId: string,
-    url: string,
-    isSafe: boolean
-  ) => {
-    if (!client || !ethAddress) {
-      console.error("Client or ethAddress not initialized");
-      return;
-    }
-
+  const getAttestations = useCallback(async (schemaId: string, url: string) => {
+    setLoading(true);
+    setError(null);
     try {
-      const attestation = {
-        schemaId: schemaId,
-        data: {
-          url: url,
-          isSafe: isSafe,
-          ethAddress: ethAddress,
+      const fullSchemaId = `onchain_evm_${CHAIN_ID}_${schemaId}`;
+      console.log("Querying with:", {
+        fullSchemaId,
+        indexingValue: url.toLowerCase(),
+      });
+
+      const response = await axios.get(`${BASE_URL}/index/attestations`, {
+        params: {
+          schemaId: fullSchemaId,
+          indexingValue: url.toLowerCase(),
+          page: 1,
+          size: 100,
+          mode: "onchain",
         },
-        indexingValue: url.toLowerCase(), // Index by the URL (lowercased)
-      };
+      });
 
-      const result = await client.createAttestation(attestation);
-      console.log("Safety Rating Attestation Created:", result);
-    } catch (error) {
-      console.error("Error creating Safety Rating attestation:", error);
-    }
-  };
+      console.log("Raw API response:", response.data);
 
-  const createCommentAttestation = async (
-    schemaId: string,
-    url: string,
-    comment: string
-  ) => {
-    if (!client || !ethAddress) {
-      console.error("Client or ethAddress not initialized");
-      return;
-    }
-
-    try {
-      const attestation = {
-        schemaId: schemaId,
-        data: {
-          url: url,
-          comment: comment,
-          ethAddress: ethAddress,
-        },
-        indexingValue: url.toLowerCase(), // Index by the URL (lowercased)
-      };
-
-      const result = await client.createAttestation(attestation);
-      console.log("Comment Attestation Created:", result);
-    } catch (error) {
-      console.error("Error creating Comment attestation:", error);
-    }
-  };
-
-  const getAttestations = async (schemaId: string, url: string) => {
-    try {
-      const query = {
-        schemaId: schemaId,
-        indexingValue: url.toLowerCase(), // Ensure consistent indexing
-        page: 1,
-      };
-
-      const result = await indexService.queryAttestationList(query);
-      if (result && result.rows) {
-        console.log("Fetched Attestations:", result.rows);
-        return result.rows;
+      if (response.data.success) {
+        return response.data.data.rows;
       } else {
-        console.log("No attestations found.");
-        return [];
+        throw new Error(
+          response.data.message || "Failed to fetch attestations"
+        );
       }
-    } catch (error) {
-      console.error("Error fetching attestations:", error);
+    } catch (err) {
+      console.error("Error fetching attestations:", err);
+      setError(
+        err instanceof Error ? err.message : "An unknown error occurred"
+      );
+      return [];
+    } finally {
+      setLoading(false);
     }
-  };
+  }, []);
+
+  const createAttestation = useCallback(
+    async (schemaId: string, url: string, data: any) => {
+      if (!client || !ethAddress) {
+        console.error("Client or ethAddress not initialized");
+        throw new Error("Client or ethAddress not initialized");
+      }
+
+      try {
+        const attestation = {
+          schemaId,
+          data: {
+            ...data,
+            ethAddress,
+          },
+          indexingValue: url.toLowerCase(),
+        };
+
+        const result = await client.createAttestation(attestation);
+        console.log("Attestation Created:", result);
+        return result;
+      } catch (error) {
+        console.error("Error creating attestation:", error);
+        throw error;
+      }
+    },
+    [client, ethAddress]
+  );
 
   return {
-    createSafetyRatingAttestation,
-    createCommentAttestation,
     getAttestations,
+    createAttestation,
+    loading,
+    error,
   };
 }
