@@ -17,6 +17,7 @@ export const SiteRatingButtons: React.FC<SiteRatingButtonsProps> = ({
         leftIcon={<CheckIcon />}
         colorScheme={userRating === true ? "green" : "gray"}
         onClick={() => handleRateSite(true)}
+        isDisabled={userRating === true}
       >
         Safe
       </Button>
@@ -24,6 +25,7 @@ export const SiteRatingButtons: React.FC<SiteRatingButtonsProps> = ({
         leftIcon={<CloseIcon />}
         colorScheme={userRating === false ? "red" : "gray"}
         onClick={() => handleRateSite(false)}
+        isDisabled={userRating === false}
       >
         Unsafe
       </Button>

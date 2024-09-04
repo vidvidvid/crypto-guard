@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import axios from "axios";
 import { SignProtocolClient, SpMode, EvmChains } from "@ethsign/sp-sdk";
 import { privateKeyToAccount } from "viem/accounts";
-import { useWeb3Auth } from "./useWeb3Auth";
+import { useWeb3AuthContext } from "../contexts/Web3AuthContext";
 import { AbiCoder } from "ethers";
 
 const BASE_URL = "https://testnet-scan.sign.global/api";
@@ -12,7 +12,7 @@ export function useAttestations() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [client, setClient] = useState<SignProtocolClient | null>(null);
-  const { provider, ethAddress } = useWeb3Auth();
+  const { provider, ethAddress } = useWeb3AuthContext();
 
   useEffect(() => {
     const initializeClient = async () => {

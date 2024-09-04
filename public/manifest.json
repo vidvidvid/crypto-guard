@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Crypto Scam Tracker",
+  "name": "CryptoGuard",
   "version": "1.0",
   "description": "Track and flag potentially scammy crypto sites",
   "permissions": ["activeTab", "storage", "tabs"],

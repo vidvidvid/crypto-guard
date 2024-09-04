@@ -7,7 +7,6 @@ import {
   UserInfo,
 } from "@web3auth/base";
 import { EthereumPrivateKeyProvider } from "@web3auth/ethereum-provider";
-import { createOrUpdateUser, supabase } from "../supabaseClient";
 
 const clientId = import.meta.env.VITE_WEB3AUTH_CLIENT_ID || "";
 
@@ -89,7 +88,6 @@ export function useWeb3Auth() {
 
     try {
       // Create or update user in Supabase
-      await createOrUpdateUser(ethAddress, user.email);
       setLoggedIn(true);
       setError(null);
     } catch (error) {

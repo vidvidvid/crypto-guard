@@ -1,15 +1,7 @@
-import { createClient } from "@supabase/supabase-js";
 import { extractDomain } from "./utils/extractDomain";
+import { getAttestations } from "./utils/attestationUtils";
 
 console.log("Background script starting...");
-
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-console.log("Supabase URL:", supabaseUrl);
-console.log("Supabase Anon Key:", supabaseAnonKey ? "Set" : "Not Set");
-
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 function setIcon(tabId: number, flagged: boolean, count: number) {
   const iconPath = flagged ? "icon" : "icon";
@@ -34,20 +26,12 @@ async function checkUrl(tabId: number, url: string) {
   console.log(`Checking Domain: ${domain} for tab ${tabId}`);
 
   try {
-    const { data, error } = await supabase
-      .from("flagged_sites")
-      .select("url")
-      .eq("url", domain)
-      .eq("is_safe", false);
-
-    if (error) {
-      console.error("Error checking flagged sites:", error);
-      setIcon(tabId, false, 0);
-      return;
-    }
-
-    const flagged = data && data.length > 0;
-    setIcon(tabId, flagged, data ? data.length : 0);
+    const attestations = await getAttestations(domain);
+    const unsafeCount = attestations.filter(
+      (attestation: any) => !attestation.decodedData.isSafe
+    ).length;
+    const flagged = unsafeCount > 0;
+    setIcon(tabId, flagged, unsafeCount);
   } catch (error) {
     console.error("Error in checkUrl:", error);
     setIcon(tabId, false, 0);

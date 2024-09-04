@@ -1,11 +1,17 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAttestations } from "./useAttestations";
+import { useCommentVotes } from "./useCommentVotes";
+import { useToast } from "@chakra-ui/react";
+import { useWeb3AuthContext } from "../contexts/Web3AuthContext";
 
 export function useComments(currentUrl: string) {
   const [comments, setComments] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { createAttestation, getAttestations } = useAttestations();
+  const { getVotesForComments, voteOnComment } = useCommentVotes(currentUrl);
+  const { ethAddress } = useWeb3AuthContext();
+  const toast = useToast();
 
   const COMMENT_SCHEMA_ID = import.meta.env.VITE_ATTESTATION_COMMENT_ID;
 
@@ -15,33 +21,36 @@ export function useComments(currentUrl: string) {
     setError(null);
     try {
       const attestations = await getAttestations(COMMENT_SCHEMA_ID, currentUrl);
-      setComments(
-        attestations.filter(
-          (att: any) => att.decodedData && !att.decodedData.error
-        )
-      );
+      const commentIds = attestations.map((att: any) => att.id);
+      const votesMap = await getVotesForComments(commentIds);
+
+      const commentsWithVotes = attestations.map((att: any) => ({
+        ...att,
+        votes: votesMap[att.id] || { upvotes: 0, downvotes: 0, userVote: null },
+      }));
+
+      setComments(commentsWithVotes);
     } catch (error) {
       console.error("Error loading comments:", error);
       setError("Failed to load comments");
     } finally {
       setLoading(false);
     }
-  }, [COMMENT_SCHEMA_ID, currentUrl, getAttestations]);
+  }, [COMMENT_SCHEMA_ID, currentUrl, getAttestations, getVotesForComments]);
 
   useEffect(() => {
-    if (currentUrl && COMMENT_SCHEMA_ID) {
-      loadComments();
-    }
-  }, [currentUrl, COMMENT_SCHEMA_ID, loadComments]);
+    loadComments();
+  }, [loadComments]);
 
   const addComment = async (newComment: string) => {
-    if (!COMMENT_SCHEMA_ID || !currentUrl) {
+    if (!COMMENT_SCHEMA_ID || !currentUrl || !ethAddress) {
       throw new Error("Missing required information to add comment");
     }
 
     try {
       await createAttestation(COMMENT_SCHEMA_ID, currentUrl, {
         comment: newComment,
+        ethAddress,
       });
       await loadComments();
     } catch (error) {
@@ -50,5 +59,10 @@ export function useComments(currentUrl: string) {
     }
   };
 
-  return { comments, addComment, loading, error };
+  const handleVote = async (commentId: string, isUpvote: boolean) => {
+    await voteOnComment(commentId, isUpvote);
+    await loadComments();
+  };
+
+  return { comments, addComment, handleVote, loading, error };
 }

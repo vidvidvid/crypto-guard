@@ -1,29 +1,20 @@
-import React, { useState } from "react";
-import { VStack, Checkbox, useToast } from "@chakra-ui/react";
-import { useWeb3Auth } from "../hooks/useWeb3Auth";
+import { VStack, useToast, Text, useDisclosure } from "@chakra-ui/react";
+import { useWeb3AuthContext } from "../contexts/Web3AuthContext";
 import { useSiteRatings } from "../hooks/useSiteRatings";
-import { useAttestations } from "../hooks/useAttestations";
 import { SiteRatingButtons } from "./SiteRatingButtons";
-import { createOrUpdateUser, rateSite } from "../supabaseClient";
+import { useState } from "react";
+import { ConfirmationDialog } from "./ConfirmationDialog";
 
 function SiteRating() {
-  const { ethAddress, userData } = useWeb3Auth();
-  const {
-    currentUrl,
-    userRating,
-    setUserRating,
-    loadFlaggedSites,
-    loadSiteRatings,
-  } = useSiteRatings(ethAddress);
-  const { createAttestation } = useAttestations();
+  const { ethAddress } = useWeb3AuthContext();
+  const { currentUrl, userRating, siteRatings, rateSite } =
+    useSiteRatings(ethAddress);
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const [pendingRating, setPendingRating] = useState<boolean | null>(null);
   const toast = useToast();
-  const [shouldCreateAttestation, setShouldCreateAttestation] = useState(false);
-
-  const SAFETY_RATING_SCHEMA_ID = import.meta.env
-    .VITE_ATTESTATION_SAFETY_RATING_ID;
 
   const handleRateSite = async (isSafe: boolean) => {
-    if (!ethAddress || !currentUrl || !userData?.email) {
+    if (!ethAddress || !currentUrl) {
       toast({
         title: "Error",
         description: "Cannot rate site: missing data or invalid URL",
@@ -34,33 +25,17 @@ function SiteRating() {
       return;
     }
 
+    if (userRating !== null && userRating !== isSafe) {
+      setPendingRating(isSafe);
+      onOpen();
+    } else {
+      await submitRating(isSafe);
+    }
+  };
+
+  const submitRating = async (isSafe: boolean) => {
     try {
-      await createOrUpdateUser(ethAddress, userData.email);
-      const updatedRating = await rateSite(
-        currentUrl,
-        ethAddress.toLowerCase(),
-        isSafe
-      );
-      setUserRating(updatedRating.is_safe);
-
-      if (shouldCreateAttestation) {
-        await createAttestation(SAFETY_RATING_SCHEMA_ID, currentUrl, {
-          isSafe,
-        });
-      }
-
-      toast({
-        title: "Success",
-        description: `Site rated as ${isSafe ? "safe" : "unsafe"} successfully${
-          shouldCreateAttestation ? " and attestation created" : ""
-        }!`,
-        status: "success",
-        duration: 3000,
-        isClosable: true,
-      });
-
-      await loadFlaggedSites();
-      await loadSiteRatings(currentUrl);
+      await rateSite(isSafe);
     } catch (error) {
       console.error("Error rating site:", error);
       toast({
@@ -79,12 +54,23 @@ function SiteRating() {
         userRating={userRating}
         handleRateSite={handleRateSite}
       />
-      <Checkbox
-        isChecked={shouldCreateAttestation}
-        onChange={(e) => setShouldCreateAttestation(e.target.checked)}
-      >
-        Create attestation on blockchain
-      </Checkbox>
+      {siteRatings && (
+        <VStack>
+          <Text>Safe Ratings: {siteRatings.safeCount}</Text>
+          <Text>Unsafe Ratings: {siteRatings.unsafeCount}</Text>
+          <Text>Total Ratings: {siteRatings.totalRatings}</Text>
+        </VStack>
+      )}
+      <ConfirmationDialog
+        isOpen={isOpen}
+        onClose={onClose}
+        onConfirm={() => {
+          onClose();
+          submitRating(pendingRating!);
+        }}
+        title='Change Rating'
+        message='Are you sure you want to change your rating for this site?'
+      />
     </VStack>
   );
 }

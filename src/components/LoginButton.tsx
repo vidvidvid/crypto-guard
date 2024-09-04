@@ -1,9 +1,9 @@
 import React from "react";
 import { Button, Text, VStack } from "@chakra-ui/react";
-import { useWeb3Auth } from "../hooks/useWeb3Auth";
+import { useWeb3AuthContext } from "../contexts/Web3AuthContext";
 
 function LoginButton() {
-  const { login, error } = useWeb3Auth();
+  const { login, error } = useWeb3AuthContext();
 
   return (
     <VStack spacing={4}>
