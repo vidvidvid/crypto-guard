@@ -1,22 +1,17 @@
 import { useState, useCallback, useEffect } from "react";
 import axios from "axios";
-import {
-  SignProtocolClient,
-  IndexService,
-  SpMode,
-  EvmChains,
-} from "@ethsign/sp-sdk";
+import { SignProtocolClient, SpMode, EvmChains } from "@ethsign/sp-sdk";
 import { privateKeyToAccount } from "viem/accounts";
 import { useWeb3Auth } from "./useWeb3Auth";
+import { AbiCoder } from "ethers";
 
 const BASE_URL = "https://testnet-scan.sign.global/api";
-const CHAIN_ID = "421614"; // Arbitrum Sepolia
+const CHAIN_ID = "421614";
 
 export function useAttestations() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [client, setClient] = useState<SignProtocolClient | null>(null);
-  const [indexService] = useState(new IndexService("testnet"));
   const { provider, ethAddress } = useWeb3Auth();
 
   useEffect(() => {
@@ -50,16 +45,26 @@ export function useAttestations() {
     initializeClient();
   }, [provider, ethAddress]);
 
+  const decodeAttestationData = (encodedData: string, schema: any) => {
+    try {
+      const abiCoder = new AbiCoder();
+      const types = schema.data.map((field: any) => field.type);
+      const decoded = abiCoder.decode(types, encodedData);
+      return schema.data.reduce((acc: any, field: any, index: number) => {
+        acc[field.name] = decoded[index];
+        return acc;
+      }, {});
+    } catch (error) {
+      console.error("Error decoding attestation data:", error);
+      return { error: "Failed to decode attestation data" };
+    }
+  };
+
   const getAttestations = useCallback(async (schemaId: string, url: string) => {
     setLoading(true);
     setError(null);
     try {
       const fullSchemaId = `onchain_evm_${CHAIN_ID}_${schemaId}`;
-      console.log("Querying with:", {
-        fullSchemaId,
-        indexingValue: url.toLowerCase(),
-      });
-
       const response = await axios.get(`${BASE_URL}/index/attestations`, {
         params: {
           schemaId: fullSchemaId,
@@ -70,10 +75,15 @@ export function useAttestations() {
         },
       });
 
-      console.log("Raw API response:", response.data);
-
       if (response.data.success) {
-        return response.data.data.rows;
+        const attestations = response.data.data.rows;
+        return attestations.map((attestation: any) => ({
+          ...attestation,
+          decodedData: decodeAttestationData(
+            attestation.data,
+            attestation.schema
+          ),
+        }));
       } else {
         throw new Error(
           response.data.message || "Failed to fetch attestations"

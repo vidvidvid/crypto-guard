@@ -1,13 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAttestations } from "./useAttestations";
-import { useToast } from "@chakra-ui/react";
 
 export function useComments(currentUrl: string) {
   const [comments, setComments] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { createAttestation, getAttestations } = useAttestations();
-  const toast = useToast();
 
   const COMMENT_SCHEMA_ID = import.meta.env.VITE_ATTESTATION_COMMENT_ID;
 
@@ -17,7 +15,11 @@ export function useComments(currentUrl: string) {
     setError(null);
     try {
       const attestations = await getAttestations(COMMENT_SCHEMA_ID, currentUrl);
-      setComments(attestations || []);
+      setComments(
+        attestations.filter(
+          (att: any) => att.decodedData && !att.decodedData.error
+        )
+      );
     } catch (error) {
       console.error("Error loading comments:", error);
       setError("Failed to load comments");

@@ -60,7 +60,7 @@ function CommentsSection() {
         <VStack align='stretch' spacing={2}>
           {comments.map((comment, index) => (
             <Box key={index} p={2} borderWidth={1} borderRadius='md'>
-              <Text>{comment.data.comment}</Text>
+              <Text>{comment.decodedData.comment}</Text>
               <Text fontSize='sm' color='gray.500'>
                 By: {comment.attester.slice(0, 6)}...
                 {comment.attester.slice(-4)}
