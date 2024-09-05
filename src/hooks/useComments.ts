@@ -9,7 +9,7 @@ export function useComments(currentUrl: string) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { createAttestation, getAttestations } = useAttestations();
-  const { getVotesForComments, voteOnComment } = useCommentVotes(currentUrl);
+  const { getVotesForComments, voteOnComment } = useCommentVotes();
   const { ethAddress } = useWeb3AuthContext();
   const toast = useToast();
 
@@ -20,7 +20,12 @@ export function useComments(currentUrl: string) {
     setLoading(true);
     setError(null);
     try {
-      const attestations = await getAttestations(COMMENT_SCHEMA_ID, currentUrl);
+      // Use toLowerCase only for the URL, not for comment IDs
+      const attestations = await getAttestations(
+        COMMENT_SCHEMA_ID,
+        currentUrl.toLowerCase()
+      );
+
       const commentIds = attestations.map((att: any) => att.id);
       const votesMap = await getVotesForComments(commentIds);
 
@@ -49,9 +54,18 @@ export function useComments(currentUrl: string) {
 
     try {
       await createAttestation(COMMENT_SCHEMA_ID, currentUrl, {
+        url: currentUrl,
         comment: newComment,
-        ethAddress,
       });
+
+      toast({
+        title: "Success",
+        description: "Comment added successfully!",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+
       await loadComments();
     } catch (error) {
       console.error("Error adding comment:", error);

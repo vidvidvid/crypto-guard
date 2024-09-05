@@ -3,7 +3,7 @@ import { useAttestations } from "./useAttestations";
 import { useWeb3AuthContext } from "../contexts/Web3AuthContext";
 import { useToast } from "@chakra-ui/react";
 
-export function useCommentVotes(currentUrl: string) {
+export function useCommentVotes() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { createAttestation, getAttestations } = useAttestations();
@@ -14,32 +14,40 @@ export function useCommentVotes(currentUrl: string) {
 
   const getVotesForComments = useCallback(
     async (commentIds: string[]) => {
-      if (!VOTE_SCHEMA_ID || !currentUrl) return {};
+      if (!VOTE_SCHEMA_ID) return {};
       setLoading(true);
       setError(null);
       try {
-        const attestations = await getAttestations(VOTE_SCHEMA_ID, currentUrl);
-        const voteMap = commentIds.reduce((acc, id) => {
-          acc[id] = { upvotes: 0, downvotes: 0, userVote: null };
-          return acc;
-        }, {} as Record<string, { upvotes: number; downvotes: number; userVote: number | null }>);
+        const voteMap: Record<
+          string,
+          { upvotes: number; downvotes: number; userVote: number | null }
+        > = {};
 
-        attestations.forEach((attestation: any) => {
-          const {
-            commentId,
-            vote,
-            ethAddress: voterAddress,
-          } = attestation.decodedData;
-          if (voteMap[commentId]) {
+        for (const commentId of commentIds) {
+          // Pass the exact commentId without transformation
+          const voteAttestations = await getAttestations(
+            VOTE_SCHEMA_ID,
+            commentId
+          );
+
+          let upvotes = 0;
+          let downvotes = 0;
+          let userVote = null;
+
+          voteAttestations.forEach((attestation: any) => {
+            const { vote, ethAddress: voterAddress } = attestation.decodedData;
             const voteValue = typeof vote === "bigint" ? Number(vote) : vote;
-            if (voteValue === 1) voteMap[commentId].upvotes++;
-            else if (voteValue === 0) voteMap[commentId].downvotes++;
+
+            if (voteValue === 1) upvotes++;
+            else if (voteValue === -1) downvotes++;
 
             if (voterAddress.toLowerCase() === ethAddress?.toLowerCase()) {
-              voteMap[commentId].userVote = voteValue;
+              userVote = voteValue;
             }
-          }
-        });
+          });
+
+          voteMap[commentId] = { upvotes, downvotes, userVote };
+        }
 
         return voteMap;
       } catch (err) {
@@ -50,11 +58,11 @@ export function useCommentVotes(currentUrl: string) {
         setLoading(false);
       }
     },
-    [VOTE_SCHEMA_ID, currentUrl, getAttestations, ethAddress]
+    [VOTE_SCHEMA_ID, getAttestations, ethAddress]
   );
 
   const voteOnComment = async (commentId: string, isUpvote: boolean) => {
-    if (!VOTE_SCHEMA_ID || !currentUrl || !ethAddress) {
+    if (!VOTE_SCHEMA_ID || !commentId || !ethAddress) {
       toast({
         title: "Error",
         description: "Cannot vote: missing data",
@@ -66,11 +74,11 @@ export function useCommentVotes(currentUrl: string) {
     }
 
     try {
-      await createAttestation(VOTE_SCHEMA_ID, currentUrl, {
+      const result = await createAttestation(VOTE_SCHEMA_ID, commentId, {
         commentId,
-        vote: isUpvote ? 1 : 0,
-        ethAddress,
+        vote: isUpvote ? 1 : -1,
       });
+
       toast({
         title: "Success",
         description: "Vote recorded successfully!",

@@ -59,12 +59,14 @@ export const SiteRatingsProvider: React.FC<{ children: React.ReactNode }> = ({
       try {
         const attestations = await getAttestations(
           SAFETY_RATING_SCHEMA_ID,
-          url
+          url.toLowerCase()
         );
-        console.log("attestations", attestations);
-        const safeCount = attestations.filter(
-          (a: any) => a.decodedData.isSafe === true
-        ).length;
+
+        const safeCount = attestations.filter((a: any) => {
+          const decodedData = JSON.parse(a.data);
+
+          return decodedData.isSafe === true;
+        }).length;
         const unsafeCount = attestations.length - safeCount;
 
         setSiteRatings({
@@ -74,18 +76,21 @@ export const SiteRatingsProvider: React.FC<{ children: React.ReactNode }> = ({
         });
 
         if (ethAddress) {
-          const userAttestation = attestations.find(
-            (a: any) =>
-              a.decodedData.ethAddress.toLowerCase() ===
-              ethAddress.toLowerCase()
-          );
-          setUserRating(
-            userAttestation ? userAttestation.decodedData.isSafe : null
-          );
+          const userAttestation = attestations.find((a: any) => {
+            const decodedData = JSON.parse(a.data);
+            return (
+              decodedData.ethAddress.toLowerCase() === ethAddress.toLowerCase()
+            );
+          });
+
+          if (userAttestation) {
+            const decodedData = JSON.parse(userAttestation.data);
+            setUserRating(decodedData.isSafe);
+          } else {
+            setUserRating(null);
+          }
         }
-      } catch (error) {
-        console.error("Error loading site ratings:", error);
-      }
+      } catch (error) {}
     },
     [SAFETY_RATING_SCHEMA_ID, ethAddress, getAttestations]
   );
@@ -132,7 +137,6 @@ export const SiteRatingsProvider: React.FC<{ children: React.ReactNode }> = ({
         isClosable: true,
       });
     } catch (error) {
-      console.error("Error rating site:", error);
       toast({
         title: "Error",
         description: `Failed to rate site: ${(error as Error).message}`,

@@ -26,7 +26,7 @@ async function checkUrl(tabId: number, url: string) {
   console.log(`Checking Domain: ${domain} for tab ${tabId}`);
 
   try {
-    const attestations = await getAttestations(domain);
+    const attestations = await getAttestations(domain.toLowerCase());
     const unsafeCount = attestations.filter(
       (attestation: any) => !attestation.decodedData.isSafe
     ).length;

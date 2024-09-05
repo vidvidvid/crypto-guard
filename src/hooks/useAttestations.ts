@@ -52,6 +52,12 @@ export function useAttestations() {
 
   const decodeAttestationData = (encodedData: string, schema: any) => {
     try {
+      // If the data is already a JSON string, parse it
+      if (typeof encodedData === "string" && encodedData.startsWith("{")) {
+        return JSON.parse(encodedData);
+      }
+
+      // Otherwise, use AbiCoder to decode
       const abiCoder = new AbiCoder();
       const types = schema.data.map((field: any) => field.type);
       const decoded = abiCoder.decode(types, encodedData);
@@ -66,7 +72,7 @@ export function useAttestations() {
   };
 
   const getAttestations = useCallback(
-    async (schemaId: string, url: string) => {
+    async (schemaId: string, indexingValue: string) => {
       if (!indexService) {
         throw new Error("IndexService not initialized");
       }
@@ -76,7 +82,7 @@ export function useAttestations() {
       try {
         const response = await indexService.queryAttestationList({
           schemaId,
-          indexingValue: url.toLowerCase(),
+          indexingValue,
           page: 1,
           mode: "offchain",
         });
@@ -106,7 +112,7 @@ export function useAttestations() {
   );
 
   const createAttestation = useCallback(
-    async (schemaId: string, url: string, data: any) => {
+    async (schemaId: string, indexingValue: string, data: any) => {
       if (!client || !ethAddress) {
         console.error("Client or ethAddress not initialized");
         throw new Error("Client or ethAddress not initialized");
@@ -119,11 +125,10 @@ export function useAttestations() {
             ...data,
             ethAddress,
           },
-          indexingValue: url.toLowerCase(),
+          indexingValue,
         };
 
         const result = await client.createAttestation(attestation);
-        console.log("Off-chain Attestation Created:", result);
         return result;
       } catch (error) {
         console.error("Error creating off-chain attestation:", error);
