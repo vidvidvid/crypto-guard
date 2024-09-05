@@ -1,14 +1,14 @@
+// SiteRating.tsx
 import { VStack, useToast, Text, useDisclosure } from "@chakra-ui/react";
 import { useWeb3AuthContext } from "../contexts/Web3AuthContext";
-import { useSiteRatings } from "../hooks/useSiteRatings";
+import { useSiteRatings } from "../contexts/SiteRatingsContext";
 import { SiteRatingButtons } from "./SiteRatingButtons";
 import { useState } from "react";
 import { ConfirmationDialog } from "./ConfirmationDialog";
 
 function SiteRating() {
   const { ethAddress } = useWeb3AuthContext();
-  const { currentUrl, userRating, siteRatings, rateSite } =
-    useSiteRatings(ethAddress);
+  const { currentUrl, userRating, siteRatings, rateSite } = useSiteRatings();
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [pendingRating, setPendingRating] = useState<boolean | null>(null);
   const toast = useToast();

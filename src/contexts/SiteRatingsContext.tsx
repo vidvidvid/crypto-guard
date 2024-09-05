@@ -1,10 +1,43 @@
-import { useState, useEffect, useCallback } from "react";
-import { useAttestations } from "./useAttestations";
-import { useWeb3AuthContext } from "../contexts/Web3AuthContext";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+} from "react";
+import { useAttestations } from "../hooks/useAttestations";
+import { useWeb3AuthContext } from "./Web3AuthContext";
 import { useToast } from "@chakra-ui/react";
 import { isValidFlagUrl, getActiveTabUrl } from "../utils/helpers";
 
-export function useSiteRatings(ethAddress: string | null) {
+interface SiteRatingsContextType {
+  currentUrl: string;
+  isValidUrl: boolean;
+  siteRatings: {
+    safeCount: number;
+    unsafeCount: number;
+    totalRatings: number;
+  } | null;
+  userRating: boolean | null;
+  loadSiteRatings: (url: string) => Promise<void>;
+  rateSite: (isSafe: boolean) => Promise<void>;
+}
+
+const SiteRatingsContext = createContext<SiteRatingsContextType | undefined>(
+  undefined
+);
+
+export const useSiteRatings = () => {
+  const context = useContext(SiteRatingsContext);
+  if (!context) {
+    throw new Error("useSiteRatings must be used within a SiteRatingsProvider");
+  }
+  return context;
+};
+
+export const SiteRatingsProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [currentUrl, setCurrentUrl] = useState<string>("");
   const [isValidUrl, setIsValidUrl] = useState(false);
   const [siteRatings, setSiteRatings] = useState<{
@@ -14,7 +47,7 @@ export function useSiteRatings(ethAddress: string | null) {
   } | null>(null);
   const [userRating, setUserRating] = useState<boolean | null>(null);
   const { createAttestation, getAttestations } = useAttestations();
-  const { userData } = useWeb3AuthContext();
+  const { userData, ethAddress } = useWeb3AuthContext();
   const toast = useToast();
 
   const SAFETY_RATING_SCHEMA_ID = import.meta.env
@@ -28,8 +61,9 @@ export function useSiteRatings(ethAddress: string | null) {
           SAFETY_RATING_SCHEMA_ID,
           url
         );
+        console.log("attestations", attestations);
         const safeCount = attestations.filter(
-          (a: any) => a.decodedData.isSafe
+          (a: any) => a.decodedData.isSafe === true
         ).length;
         const unsafeCount = attestations.length - safeCount;
 
@@ -51,16 +85,9 @@ export function useSiteRatings(ethAddress: string | null) {
         }
       } catch (error) {
         console.error("Error loading site ratings:", error);
-        toast({
-          title: "Error",
-          description: "Failed to load site ratings",
-          status: "error",
-          duration: 3000,
-          isClosable: true,
-        });
       }
     },
-    [SAFETY_RATING_SCHEMA_ID, ethAddress, getAttestations, toast]
+    [SAFETY_RATING_SCHEMA_ID, ethAddress, getAttestations]
   );
 
   useEffect(() => {
@@ -91,7 +118,6 @@ export function useSiteRatings(ethAddress: string | null) {
       await createAttestation(SAFETY_RATING_SCHEMA_ID, currentUrl, {
         url: currentUrl,
         isSafe,
-        ethAddress,
       });
       await loadSiteRatings(currentUrl);
       setUserRating(isSafe);
@@ -118,13 +144,18 @@ export function useSiteRatings(ethAddress: string | null) {
     }
   };
 
-  return {
+  const value: SiteRatingsContextType = {
     currentUrl,
     isValidUrl,
     siteRatings,
     userRating,
-    setUserRating,
     loadSiteRatings,
     rateSite,
   };
-}
+
+  return (
+    <SiteRatingsContext.Provider value={value}>
+      {children}
+    </SiteRatingsContext.Provider>
+  );
+};

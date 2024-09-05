@@ -1,9 +1,8 @@
-import React from "react";
 import { StatGroup, Stat, StatLabel, StatNumber } from "@chakra-ui/react";
-import { useSiteRatings } from "../hooks/useSiteRatings";
+import { useSiteRatings } from "../contexts/SiteRatingsContext";
 
 function SiteStats() {
-  const { siteRatings } = useSiteRatings(null);
+  const { siteRatings } = useSiteRatings();
 
   if (!siteRatings) return null;
 

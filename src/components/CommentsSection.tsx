@@ -12,11 +12,11 @@ import {
 import { ChevronUpIcon, ChevronDownIcon } from "@chakra-ui/icons";
 import { useComments } from "../hooks/useComments";
 import { useWeb3AuthContext } from "../contexts/Web3AuthContext";
-import { useSiteRatings } from "../hooks/useSiteRatings";
+import { useSiteRatings } from "../contexts/SiteRatingsContext";
 
 function CommentsSection() {
   const { ethAddress } = useWeb3AuthContext();
-  const { currentUrl } = useSiteRatings(ethAddress);
+  const { currentUrl } = useSiteRatings();
   const { comments, addComment, handleVote, loading, error } =
     useComments(currentUrl);
   const [newComment, setNewComment] = useState("");

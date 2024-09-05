@@ -2,8 +2,8 @@ import { useState, useCallback, useEffect } from "react";
 import {
   SignProtocolClient,
   SpMode,
-  EvmChains,
   IndexService,
+  OffChainSignType,
 } from "@ethsign/sp-sdk";
 import { privateKeyToAccount } from "viem/accounts";
 import { useWeb3AuthContext } from "../contexts/Web3AuthContext";
@@ -34,13 +34,13 @@ export function useAttestations() {
             throw new Error("Invalid private key length");
           }
 
-          const newClient = new SignProtocolClient(SpMode.OnChain, {
-            chain: EvmChains.arbitrumSepolia,
+          const newClient = new SignProtocolClient(SpMode.OffChain, {
+            signType: OffChainSignType.EvmEip712,
             account: privateKeyToAccount(privateKey as `0x${string}`),
           });
 
           setClient(newClient);
-          setIndexService(new IndexService("testnet"));
+          setIndexService(new IndexService("mainnet"));
         } catch (error) {
           console.error("Error initializing SignProtocolClient:", error);
         }
@@ -74,12 +74,11 @@ export function useAttestations() {
       setLoading(true);
       setError(null);
       try {
-        const fullSchemaId = `onchain_evm_${CHAIN_ID}_${schemaId}`;
         const response = await indexService.queryAttestationList({
-          schemaId: fullSchemaId,
+          schemaId,
           indexingValue: url.toLowerCase(),
           page: 1,
-          mode: "onchain",
+          mode: "offchain",
         });
 
         if (response) {
@@ -124,10 +123,10 @@ export function useAttestations() {
         };
 
         const result = await client.createAttestation(attestation);
-        console.log("Attestation Created:", result);
+        console.log("Off-chain Attestation Created:", result);
         return result;
       } catch (error) {
-        console.error("Error creating attestation:", error);
+        console.error("Error creating off-chain attestation:", error);
         throw error;
       }
     },
