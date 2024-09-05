@@ -1,17 +1,21 @@
 import { useState, useCallback, useEffect } from "react";
-import axios from "axios";
-import { SignProtocolClient, SpMode, EvmChains } from "@ethsign/sp-sdk";
+import {
+  SignProtocolClient,
+  SpMode,
+  EvmChains,
+  IndexService,
+} from "@ethsign/sp-sdk";
 import { privateKeyToAccount } from "viem/accounts";
 import { useWeb3AuthContext } from "../contexts/Web3AuthContext";
 import { AbiCoder } from "ethers";
 
-const BASE_URL = "https://testnet-scan.sign.global/api";
 const CHAIN_ID = "421614";
 
 export function useAttestations() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [client, setClient] = useState<SignProtocolClient | null>(null);
+  const [indexService, setIndexService] = useState<IndexService | null>(null);
   const { provider, ethAddress } = useWeb3AuthContext();
 
   useEffect(() => {
@@ -30,12 +34,13 @@ export function useAttestations() {
             throw new Error("Invalid private key length");
           }
 
-          const client = new SignProtocolClient(SpMode.OnChain, {
+          const newClient = new SignProtocolClient(SpMode.OnChain, {
             chain: EvmChains.arbitrumSepolia,
             account: privateKeyToAccount(privateKey as `0x${string}`),
           });
 
-          setClient(client);
+          setClient(newClient);
+          setIndexService(new IndexService("testnet"));
         } catch (error) {
           console.error("Error initializing SignProtocolClient:", error);
         }
@@ -60,45 +65,46 @@ export function useAttestations() {
     }
   };
 
-  const getAttestations = useCallback(async (schemaId: string, url: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const fullSchemaId = `onchain_evm_${CHAIN_ID}_${schemaId}`;
-      const response = await axios.get(`${BASE_URL}/index/attestations`, {
-        params: {
+  const getAttestations = useCallback(
+    async (schemaId: string, url: string) => {
+      if (!indexService) {
+        throw new Error("IndexService not initialized");
+      }
+
+      setLoading(true);
+      setError(null);
+      try {
+        const fullSchemaId = `onchain_evm_${CHAIN_ID}_${schemaId}`;
+        const response = await indexService.queryAttestationList({
           schemaId: fullSchemaId,
           indexingValue: url.toLowerCase(),
           page: 1,
-          size: 100,
           mode: "onchain",
-        },
-      });
+        });
 
-      if (response.data.success) {
-        const attestations = response.data.data.rows;
-        return attestations.map((attestation: any) => ({
-          ...attestation,
-          decodedData: decodeAttestationData(
-            attestation.data,
-            attestation.schema
-          ),
-        }));
-      } else {
-        throw new Error(
-          response.data.message || "Failed to fetch attestations"
+        if (response) {
+          return response.rows.map((attestation) => ({
+            ...attestation,
+            decodedData: decodeAttestationData(
+              attestation.data,
+              attestation.schema
+            ),
+          }));
+        } else {
+          throw new Error("Failed to fetch attestations");
+        }
+      } catch (err) {
+        console.error("Error fetching attestations:", err);
+        setError(
+          err instanceof Error ? err.message : "An unknown error occurred"
         );
+        return [];
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      console.error("Error fetching attestations:", err);
-      setError(
-        err instanceof Error ? err.message : "An unknown error occurred"
-      );
-      return [];
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+    [indexService]
+  );
 
   const createAttestation = useCallback(
     async (schemaId: string, url: string, data: any) => {
