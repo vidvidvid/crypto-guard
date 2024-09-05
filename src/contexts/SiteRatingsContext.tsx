@@ -46,7 +46,9 @@ export const SiteRatingsProvider: React.FC<{ children: React.ReactNode }> = ({
     totalRatings: number;
   } | null>(null);
   const [userRating, setUserRating] = useState<boolean | null>(null);
-  const { createAttestation, getAttestations } = useAttestations();
+  const { createAttestation, getAttestations, getLatestAttestationForUser } =
+    useAttestations();
+
   const { userData, ethAddress } = useWeb3AuthContext();
   const toast = useToast();
 
@@ -62,37 +64,52 @@ export const SiteRatingsProvider: React.FC<{ children: React.ReactNode }> = ({
           url.toLowerCase()
         );
 
-        const safeCount = attestations.filter((a: any) => {
-          const decodedData = JSON.parse(a.data);
+        const uniqueUsers = new Set(attestations.map((a: any) => a.signer));
+        let safeCount = 0;
+        let unsafeCount = 0;
 
-          return decodedData.isSafe === true;
-        }).length;
-        const unsafeCount = attestations.length - safeCount;
+        for (const user of uniqueUsers) {
+          const latestAttestation = await getLatestAttestationForUser(
+            SAFETY_RATING_SCHEMA_ID,
+            url.toLowerCase(),
+            user
+          );
+
+          if (latestAttestation) {
+            const decodedData = latestAttestation.decodedData;
+            decodedData.isSafe ? safeCount++ : unsafeCount++;
+          }
+        }
 
         setSiteRatings({
           safeCount,
           unsafeCount,
-          totalRatings: attestations.length,
+          totalRatings: safeCount + unsafeCount,
         });
 
         if (ethAddress) {
-          const userAttestation = attestations.find((a: any) => {
-            const decodedData = JSON.parse(a.data);
-            return (
-              decodedData.ethAddress.toLowerCase() === ethAddress.toLowerCase()
-            );
-          });
+          const userAttestation = await getLatestAttestationForUser(
+            SAFETY_RATING_SCHEMA_ID,
+            url.toLowerCase(),
+            ethAddress
+          );
 
           if (userAttestation) {
-            const decodedData = JSON.parse(userAttestation.data);
-            setUserRating(decodedData.isSafe);
+            setUserRating(userAttestation.decodedData.isSafe);
           } else {
             setUserRating(null);
           }
         }
-      } catch (error) {}
+      } catch (error) {
+        console.error("Error loading site ratings:", error);
+      }
     },
-    [SAFETY_RATING_SCHEMA_ID, ethAddress, getAttestations]
+    [
+      SAFETY_RATING_SCHEMA_ID,
+      ethAddress,
+      getAttestations,
+      getLatestAttestationForUser,
+    ]
   );
 
   useEffect(() => {

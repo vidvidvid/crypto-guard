@@ -138,9 +138,49 @@ export function useAttestations() {
     [client, ethAddress]
   );
 
+  const getLatestAttestationForUser = useCallback(
+    async (schemaId: string, indexingValue: string, userAddress: string) => {
+      if (!indexService) {
+        throw new Error("IndexService not initialized");
+      }
+
+      try {
+        const response = await indexService.queryAttestationList({
+          schemaId,
+          indexingValue,
+          page: 1,
+          mode: "offchain",
+        });
+
+        if (response && response.rows.length > 0) {
+          // Sort attestations by timestamp in descending order
+          const sortedAttestations = response.rows.sort(
+            (a, b) =>
+              new Date(b.attestTimestamp).getTime() -
+              new Date(a.attestTimestamp).getTime()
+          );
+          // Return the most recent attestation
+          return {
+            ...sortedAttestations[0],
+            decodedData: decodeAttestationData(
+              sortedAttestations[0].data,
+              sortedAttestations[0].schema
+            ),
+          };
+        }
+        return null;
+      } catch (err) {
+        console.error("Error fetching latest attestation for user:", err);
+        return null;
+      }
+    },
+    [indexService]
+  );
+
   return {
     getAttestations,
     createAttestation,
+    getLatestAttestationForUser,
     loading,
     error,
   };

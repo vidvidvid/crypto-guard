@@ -14,7 +14,10 @@ export function useCommentVotes() {
 
   const getVotesForComments = useCallback(
     async (commentIds: string[]) => {
-      if (!VOTE_SCHEMA_ID) return {};
+      if (!VOTE_SCHEMA_ID) {
+        console.log("VOTE_SCHEMA_ID is not defined");
+        return {};
+      }
       setLoading(true);
       setError(null);
       try {
@@ -24,28 +27,40 @@ export function useCommentVotes() {
         > = {};
 
         for (const commentId of commentIds) {
-          // Pass the exact commentId without transformation
           const voteAttestations = await getAttestations(
             VOTE_SCHEMA_ID,
             commentId
           );
 
+          // Group attestations by user
+          const userVotes = voteAttestations.reduce((acc, attestation) => {
+            const attester = attestation.attester.toLowerCase();
+            if (
+              !acc[attester] ||
+              new Date(attestation.attestTimestamp) >
+                new Date(acc[attester].attestTimestamp)
+            ) {
+              acc[attester] = attestation;
+            }
+            return acc;
+          }, {} as Record<string, any>);
+
           let upvotes = 0;
           let downvotes = 0;
           let userVote = null;
 
-          voteAttestations.forEach((attestation: any) => {
-            const { vote, ethAddress: voterAddress } = attestation.decodedData;
-            const voteValue = typeof vote === "bigint" ? Number(vote) : vote;
+          Object.values(userVotes).forEach((attestation: any) => {
+            const voteValue = attestation.decodedData.vote;
 
             if (voteValue === 1) upvotes++;
             else if (voteValue === -1) downvotes++;
 
-            if (voterAddress.toLowerCase() === ethAddress?.toLowerCase()) {
+            if (
+              attestation.attester.toLowerCase() === ethAddress?.toLowerCase()
+            ) {
               userVote = voteValue;
             }
           });
-
           voteMap[commentId] = { upvotes, downvotes, userVote };
         }
 
