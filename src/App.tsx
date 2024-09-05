@@ -4,8 +4,8 @@ import { SiteRatingsProvider } from "./contexts/SiteRatingsContext";
 import Loader from "./components/Loader";
 import LoginButton from "./components/LoginButton";
 import Header from "./components/Header";
-import RatingSummary from "./components/RatingSummary";
 import CommentsSection from "./components/CommentsSection";
+import SiteRating from "./components/SiteRating";
 
 function App() {
   const { loggedIn, isInitialized, userData } = useWeb3AuthContext();
@@ -20,7 +20,7 @@ function App() {
         <SiteRatingsProvider>
           <VStack height='100%' spacing={0}>
             <Header />
-            <RatingSummary />
+            <SiteRating />
             <Box flex={1} width='100%' overflowY='auto' p={4}>
               <CommentsSection />
             </Box>

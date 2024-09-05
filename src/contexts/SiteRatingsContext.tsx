@@ -19,6 +19,7 @@ interface SiteRatingsContextType {
     totalRatings: number;
   } | null;
   userRating: boolean | null;
+  loading: boolean;
   loadSiteRatings: (url: string) => Promise<void>;
   rateSite: (isSafe: boolean) => Promise<void>;
 }
@@ -46,6 +47,7 @@ export const SiteRatingsProvider: React.FC<{ children: React.ReactNode }> = ({
     totalRatings: number;
   } | null>(null);
   const [userRating, setUserRating] = useState<boolean | null>(null);
+  const [loading, setLoading] = useState(true);
   const { createAttestation, getAttestations, getLatestAttestationForUser } =
     useAttestations();
 
@@ -58,6 +60,7 @@ export const SiteRatingsProvider: React.FC<{ children: React.ReactNode }> = ({
   const loadSiteRatings = useCallback(
     async (url: string) => {
       if (!SAFETY_RATING_SCHEMA_ID || !url) return;
+      setLoading(true);
       try {
         const attestations = await getAttestations(
           SAFETY_RATING_SCHEMA_ID,
@@ -102,6 +105,8 @@ export const SiteRatingsProvider: React.FC<{ children: React.ReactNode }> = ({
         }
       } catch (error) {
         console.error("Error loading site ratings:", error);
+      } finally {
+        setLoading(false);
       }
     },
     [
@@ -114,12 +119,15 @@ export const SiteRatingsProvider: React.FC<{ children: React.ReactNode }> = ({
 
   useEffect(() => {
     const initialize = async () => {
+      setLoading(true);
       const url = await getActiveTabUrl();
       if (url) {
         const domain = new URL(url).hostname;
         setCurrentUrl(domain);
         setIsValidUrl(isValidFlagUrl(url));
         await loadSiteRatings(domain);
+      } else {
+        setLoading(false);
       }
     };
 
@@ -136,6 +144,7 @@ export const SiteRatingsProvider: React.FC<{ children: React.ReactNode }> = ({
       throw new Error("Missing required information to rate site");
     }
 
+    setLoading(true);
     try {
       await createAttestation(SAFETY_RATING_SCHEMA_ID, currentUrl, {
         url: currentUrl,
@@ -162,6 +171,8 @@ export const SiteRatingsProvider: React.FC<{ children: React.ReactNode }> = ({
         isClosable: true,
       });
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -170,6 +181,7 @@ export const SiteRatingsProvider: React.FC<{ children: React.ReactNode }> = ({
     isValidUrl,
     siteRatings,
     userRating,
+    loading,
     loadSiteRatings,
     rateSite,
   };

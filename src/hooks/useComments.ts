@@ -6,7 +6,8 @@ import { useWeb3AuthContext } from "../contexts/Web3AuthContext";
 
 export function useComments(currentUrl: string) {
   const [comments, setComments] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [voteLoading, setVoteLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { createAttestation, getAttestations } = useAttestations();
   const { getVotesForComments, voteOnComment } = useCommentVotes();
@@ -17,31 +18,77 @@ export function useComments(currentUrl: string) {
 
   const loadComments = useCallback(async () => {
     if (!COMMENT_SCHEMA_ID || !currentUrl) return;
-    setLoading(true);
+    setInitialLoading(true);
     setError(null);
     try {
-      // Use toLowerCase only for the URL, not for comment IDs
       const attestations = await getAttestations(
         COMMENT_SCHEMA_ID,
         currentUrl.toLowerCase()
       );
 
-      const commentIds = attestations.map((att: any) => att.id);
+      // Group attestations by user
+      const userComments = attestations.reduce((acc, attestation) => {
+        const attester = attestation.attester.toLowerCase();
+        if (!acc[attester]) {
+          acc[attester] = [];
+        }
+        acc[attester].push(attestation);
+        return acc;
+      }, {} as Record<string, any[]>);
+
+      // Get the latest comment for each user and mark as edited if necessary
+      const latestComments = Object.entries(userComments).map(
+        ([attester, userAttestations]) => {
+          const sortedAttestations = userAttestations.sort(
+            (a, b) =>
+              new Date(b.attestTimestamp).getTime() -
+              new Date(a.attestTimestamp).getTime()
+          );
+          const latestAttestation = sortedAttestations[0];
+          return {
+            ...latestAttestation,
+            isEdited: sortedAttestations.length > 1,
+            attester,
+          };
+        }
+      );
+
+      const commentIds = latestComments.map((comment) => comment.id);
       const votesMap = await getVotesForComments(commentIds);
 
-      const commentsWithVotes = attestations.map((att: any) => ({
-        ...att,
-        votes: votesMap[att.id] || { upvotes: 0, downvotes: 0, userVote: null },
+      const commentsWithVotes = latestComments.map((comment) => ({
+        ...comment,
+        votes: votesMap[comment.id] || {
+          upvotes: 0,
+          downvotes: 0,
+          userVote: null,
+        },
       }));
 
-      setComments(commentsWithVotes);
+      // Sort comments to ensure logged-in user's comment is first, then sort by timestamp
+      const sortedComments = commentsWithVotes.sort((a, b) => {
+        if (a.attester.toLowerCase() === ethAddress?.toLowerCase()) return -1;
+        if (b.attester.toLowerCase() === ethAddress?.toLowerCase()) return 1;
+        return (
+          new Date(b.attestTimestamp).getTime() -
+          new Date(a.attestTimestamp).getTime()
+        );
+      });
+
+      setComments(sortedComments);
     } catch (error) {
       console.error("Error loading comments:", error);
       setError("Failed to load comments");
     } finally {
-      setLoading(false);
+      setInitialLoading(false);
     }
-  }, [COMMENT_SCHEMA_ID, currentUrl, getAttestations, getVotesForComments]);
+  }, [
+    COMMENT_SCHEMA_ID,
+    currentUrl,
+    getAttestations,
+    getVotesForComments,
+    ethAddress,
+  ]);
 
   useEffect(() => {
     loadComments();
@@ -58,14 +105,6 @@ export function useComments(currentUrl: string) {
         comment: newComment,
       });
 
-      toast({
-        title: "Success",
-        description: "Comment added successfully!",
-        status: "success",
-        duration: 3000,
-        isClosable: true,
-      });
-
       await loadComments();
     } catch (error) {
       console.error("Error adding comment:", error);
@@ -74,9 +113,30 @@ export function useComments(currentUrl: string) {
   };
 
   const handleVote = async (commentId: string, isUpvote: boolean) => {
-    await voteOnComment(commentId, isUpvote);
-    await loadComments();
+    setVoteLoading(true);
+    try {
+      await voteOnComment(commentId, isUpvote);
+      await loadComments();
+    } catch (error) {
+      console.error("Error voting on comment:", error);
+      toast({
+        title: "Error",
+        description: "Failed to vote on comment",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
+      setVoteLoading(false);
+    }
   };
 
-  return { comments, addComment, handleVote, loading, error };
+  return {
+    comments,
+    addComment,
+    handleVote,
+    initialLoading,
+    voteLoading,
+    error,
+  };
 }
