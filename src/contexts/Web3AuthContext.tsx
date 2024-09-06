@@ -4,6 +4,7 @@ import { useWeb3Auth } from "../hooks/useWeb3Auth";
 interface Web3AuthContextType {
   loggedIn: boolean;
   isInitialized: boolean;
+  isLoading: boolean;
   login: () => Promise<void>;
   logout: () => Promise<void>;
   ethAddress: string | null;

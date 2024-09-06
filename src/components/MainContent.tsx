@@ -2,7 +2,6 @@ import { VStack, Text, Button } from "@chakra-ui/react";
 import { useWeb3AuthContext } from "../contexts/Web3AuthContext";
 import { useSiteRatings } from "../contexts/SiteRatingsContext";
 import SiteRating from "./SiteRating";
-import SiteStats from "./SiteStats";
 import CommentsSection from "./CommentsSection";
 
 function MainContent() {
@@ -16,7 +15,6 @@ function MainContent() {
       {isValidUrl ? (
         <>
           <SiteRating />
-          <SiteStats />
           <CommentsSection />
         </>
       ) : (
