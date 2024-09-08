@@ -2,8 +2,8 @@ import { useState, useCallback, useEffect } from "react";
 import {
   SignProtocolClient,
   SpMode,
-  EvmChains,
   IndexService,
+  OffChainSignType,
 } from "@ethsign/sp-sdk";
 import { privateKeyToAccount } from "viem/accounts";
 import { useWeb3AuthContext } from "../contexts/Web3AuthContext";
@@ -34,13 +34,13 @@ export function useAttestations() {
             throw new Error("Invalid private key length");
           }
 
-          const newClient = new SignProtocolClient(SpMode.OnChain, {
-            chain: EvmChains.arbitrumSepolia,
+          const newClient = new SignProtocolClient(SpMode.OffChain, {
+            signType: OffChainSignType.EvmEip712,
             account: privateKeyToAccount(privateKey as `0x${string}`),
           });
 
           setClient(newClient);
-          setIndexService(new IndexService("testnet"));
+          setIndexService(new IndexService("mainnet"));
         } catch (error) {
           console.error("Error initializing SignProtocolClient:", error);
         }
@@ -52,6 +52,12 @@ export function useAttestations() {
 
   const decodeAttestationData = (encodedData: string, schema: any) => {
     try {
+      // If the data is already a JSON string, parse it
+      if (typeof encodedData === "string" && encodedData.startsWith("{")) {
+        return JSON.parse(encodedData);
+      }
+
+      // Otherwise, use AbiCoder to decode
       const abiCoder = new AbiCoder();
       const types = schema.data.map((field: any) => field.type);
       const decoded = abiCoder.decode(types, encodedData);
@@ -66,7 +72,7 @@ export function useAttestations() {
   };
 
   const getAttestations = useCallback(
-    async (schemaId: string, url: string) => {
+    async (schemaId: string, indexingValue: string) => {
       if (!indexService) {
         throw new Error("IndexService not initialized");
       }
@@ -74,12 +80,11 @@ export function useAttestations() {
       setLoading(true);
       setError(null);
       try {
-        const fullSchemaId = `onchain_evm_${CHAIN_ID}_${schemaId}`;
         const response = await indexService.queryAttestationList({
-          schemaId: fullSchemaId,
-          indexingValue: url.toLowerCase(),
+          schemaId,
+          indexingValue,
           page: 1,
-          mode: "onchain",
+          mode: "offchain",
         });
 
         if (response) {
@@ -107,7 +112,7 @@ export function useAttestations() {
   );
 
   const createAttestation = useCallback(
-    async (schemaId: string, url: string, data: any) => {
+    async (schemaId: string, indexingValue: string, data: any) => {
       if (!client || !ethAddress) {
         console.error("Client or ethAddress not initialized");
         throw new Error("Client or ethAddress not initialized");
@@ -120,23 +125,62 @@ export function useAttestations() {
             ...data,
             ethAddress,
           },
-          indexingValue: url.toLowerCase(),
+          indexingValue,
         };
 
         const result = await client.createAttestation(attestation);
-        console.log("Attestation Created:", result);
         return result;
       } catch (error) {
-        console.error("Error creating attestation:", error);
+        console.error("Error creating off-chain attestation:", error);
         throw error;
       }
     },
     [client, ethAddress]
   );
 
+  const getLatestAttestationForUser = useCallback(
+    async (schemaId: string, indexingValue: string, userAddress: string) => {
+      if (!indexService) {
+        throw new Error("IndexService not initialized");
+      }
+
+      try {
+        const response = await indexService.queryAttestationList({
+          schemaId,
+          indexingValue,
+          page: 1,
+          mode: "offchain",
+        });
+
+        if (response && response.rows.length > 0) {
+          // Sort attestations by timestamp in descending order
+          const sortedAttestations = response.rows.sort(
+            (a, b) =>
+              new Date(b.attestTimestamp).getTime() -
+              new Date(a.attestTimestamp).getTime()
+          );
+          // Return the most recent attestation
+          return {
+            ...sortedAttestations[0],
+            decodedData: decodeAttestationData(
+              sortedAttestations[0].data,
+              sortedAttestations[0].schema
+            ),
+          };
+        }
+        return null;
+      } catch (err) {
+        console.error("Error fetching latest attestation for user:", err);
+        return null;
+      }
+    },
+    [indexService]
+  );
+
   return {
     getAttestations,
     createAttestation,
+    getLatestAttestationForUser,
     loading,
     error,
   };

@@ -1,26 +1,37 @@
-import React from "react";
-import { Container, VStack, Heading } from "@chakra-ui/react";
+import { Box, VStack, Flex } from "@chakra-ui/react";
 import { useWeb3AuthContext } from "./contexts/Web3AuthContext";
+import { SiteRatingsProvider } from "./contexts/SiteRatingsContext";
 import Loader from "./components/Loader";
 import LoginButton from "./components/LoginButton";
-import MainContent from "./components/MainContent";
+import Header from "./components/Header";
+import CommentsSection from "./components/CommentsSection";
+import SiteRating from "./components/SiteRating";
 
 function App() {
-  const { loggedIn, isInitialized } = useWeb3AuthContext();
+  const { loggedIn, isInitialized, userData } = useWeb3AuthContext();
 
   if (!isInitialized) {
     return <Loader />;
   }
 
   return (
-    <Container maxW='container.sm' py={4}>
-      <VStack spacing={4} align='stretch'>
-        <Heading as='h1' size='xl' textAlign='center'>
-          CryptoGuard
-        </Heading>
-        {loggedIn ? <MainContent /> : <LoginButton />}
-      </VStack>
-    </Container>
+    <Box>
+      {loggedIn ? (
+        <SiteRatingsProvider>
+          <VStack height='100%' spacing={0}>
+            <Header />
+            <SiteRating />
+            <Box flex={1} width='100%' overflowY='auto' p={4}>
+              <CommentsSection />
+            </Box>
+          </VStack>
+        </SiteRatingsProvider>
+      ) : (
+        <Flex height='100%' alignItems='center' justifyContent='center'>
+          <LoginButton />
+        </Flex>
+      )}
+    </Box>
   );
 }
 

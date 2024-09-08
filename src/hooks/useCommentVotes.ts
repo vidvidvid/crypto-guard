@@ -3,7 +3,7 @@ import { useAttestations } from "./useAttestations";
 import { useWeb3AuthContext } from "../contexts/Web3AuthContext";
 import { useToast } from "@chakra-ui/react";
 
-export function useCommentVotes(currentUrl: string) {
+export function useCommentVotes() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { createAttestation, getAttestations } = useAttestations();
@@ -14,32 +14,55 @@ export function useCommentVotes(currentUrl: string) {
 
   const getVotesForComments = useCallback(
     async (commentIds: string[]) => {
-      if (!VOTE_SCHEMA_ID || !currentUrl) return {};
+      if (!VOTE_SCHEMA_ID) {
+        console.log("VOTE_SCHEMA_ID is not defined");
+        return {};
+      }
       setLoading(true);
       setError(null);
       try {
-        const attestations = await getAttestations(VOTE_SCHEMA_ID, currentUrl);
-        const voteMap = commentIds.reduce((acc, id) => {
-          acc[id] = { upvotes: 0, downvotes: 0, userVote: null };
-          return acc;
-        }, {} as Record<string, { upvotes: number; downvotes: number; userVote: number | null }>);
+        const voteMap: Record<
+          string,
+          { upvotes: number; downvotes: number; userVote: number | null }
+        > = {};
 
-        attestations.forEach((attestation: any) => {
-          const {
-            commentId,
-            vote,
-            ethAddress: voterAddress,
-          } = attestation.decodedData;
-          if (voteMap[commentId]) {
-            const voteValue = typeof vote === "bigint" ? Number(vote) : vote;
-            if (voteValue === 1) voteMap[commentId].upvotes++;
-            else if (voteValue === 0) voteMap[commentId].downvotes++;
+        for (const commentId of commentIds) {
+          const voteAttestations = await getAttestations(
+            VOTE_SCHEMA_ID,
+            commentId
+          );
 
-            if (voterAddress.toLowerCase() === ethAddress?.toLowerCase()) {
-              voteMap[commentId].userVote = voteValue;
+          // Group attestations by user
+          const userVotes = voteAttestations.reduce((acc, attestation) => {
+            const attester = attestation.attester.toLowerCase();
+            if (
+              !acc[attester] ||
+              new Date(attestation.attestTimestamp) >
+                new Date(acc[attester].attestTimestamp)
+            ) {
+              acc[attester] = attestation;
             }
-          }
-        });
+            return acc;
+          }, {} as Record<string, any>);
+
+          let upvotes = 0;
+          let downvotes = 0;
+          let userVote = null;
+
+          Object.values(userVotes).forEach((attestation: any) => {
+            const voteValue = attestation.decodedData.vote;
+
+            if (voteValue === 1) upvotes++;
+            else if (voteValue === -1) downvotes++;
+
+            if (
+              attestation.attester.toLowerCase() === ethAddress?.toLowerCase()
+            ) {
+              userVote = voteValue;
+            }
+          });
+          voteMap[commentId] = { upvotes, downvotes, userVote };
+        }
 
         return voteMap;
       } catch (err) {
@@ -50,11 +73,11 @@ export function useCommentVotes(currentUrl: string) {
         setLoading(false);
       }
     },
-    [VOTE_SCHEMA_ID, currentUrl, getAttestations, ethAddress]
+    [VOTE_SCHEMA_ID, getAttestations, ethAddress]
   );
 
   const voteOnComment = async (commentId: string, isUpvote: boolean) => {
-    if (!VOTE_SCHEMA_ID || !currentUrl || !ethAddress) {
+    if (!VOTE_SCHEMA_ID || !commentId || !ethAddress) {
       toast({
         title: "Error",
         description: "Cannot vote: missing data",
@@ -66,11 +89,11 @@ export function useCommentVotes(currentUrl: string) {
     }
 
     try {
-      await createAttestation(VOTE_SCHEMA_ID, currentUrl, {
+      const result = await createAttestation(VOTE_SCHEMA_ID, commentId, {
         commentId,
-        vote: isUpvote ? 1 : 0,
-        ethAddress,
+        vote: isUpvote ? 1 : -1,
       });
+
       toast({
         title: "Success",
         description: "Vote recorded successfully!",

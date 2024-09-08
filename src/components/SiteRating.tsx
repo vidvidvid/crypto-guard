@@ -1,16 +1,25 @@
-import { VStack, useToast, Text, useDisclosure } from "@chakra-ui/react";
+import React from "react";
+import {
+  HStack,
+  VStack,
+  Button,
+  Text,
+  useToast,
+  useDisclosure,
+} from "@chakra-ui/react";
+import { CheckIcon, CloseIcon } from "@chakra-ui/icons";
 import { useWeb3AuthContext } from "../contexts/Web3AuthContext";
-import { useSiteRatings } from "../hooks/useSiteRatings";
-import { SiteRatingButtons } from "./SiteRatingButtons";
-import { useState } from "react";
+import { useSiteRatings } from "../contexts/SiteRatingsContext";
 import { ConfirmationDialog } from "./ConfirmationDialog";
 
 function SiteRating() {
   const { ethAddress } = useWeb3AuthContext();
-  const { currentUrl, userRating, siteRatings, rateSite } =
-    useSiteRatings(ethAddress);
+  const { currentUrl, userRating, siteRatings, rateSite, loading } =
+    useSiteRatings();
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const [pendingRating, setPendingRating] = useState<boolean | null>(null);
+  const [pendingRating, setPendingRating] = React.useState<boolean | null>(
+    null
+  );
   const toast = useToast();
 
   const handleRateSite = async (isSafe: boolean) => {
@@ -48,19 +57,42 @@ function SiteRating() {
     }
   };
 
+  if (!siteRatings) return null;
+
+  const isDisabled = loading || !ethAddress;
+
   return (
-    <VStack spacing={2} align='stretch'>
-      <SiteRatingButtons
-        userRating={userRating}
-        handleRateSite={handleRateSite}
-      />
-      {siteRatings && (
-        <VStack>
-          <Text>Safe Ratings: {siteRatings.safeCount}</Text>
-          <Text>Unsafe Ratings: {siteRatings.unsafeCount}</Text>
-          <Text>Total Ratings: {siteRatings.totalRatings}</Text>
-        </VStack>
-      )}
+    <HStack spacing={8} justify='center' p={4}>
+      <VStack>
+        <Button
+          leftIcon={<CheckIcon />}
+          colorScheme={userRating === true ? "green" : "gray"}
+          onClick={() => handleRateSite(true)}
+          isDisabled={isDisabled || userRating === true}
+          size='lg'
+          variant='outline'
+        >
+          Safe
+        </Button>
+        <Text fontWeight='bold' fontSize='xl'>
+          {siteRatings.safeCount}
+        </Text>
+      </VStack>
+      <VStack>
+        <Button
+          leftIcon={<CloseIcon />}
+          colorScheme={userRating === false ? "red" : "gray"}
+          onClick={() => handleRateSite(false)}
+          isDisabled={isDisabled || userRating === false}
+          size='lg'
+          variant='outline'
+        >
+          Unsafe
+        </Button>
+        <Text fontWeight='bold' fontSize='xl'>
+          {siteRatings.unsafeCount}
+        </Text>
+      </VStack>
       <ConfirmationDialog
         isOpen={isOpen}
         onClose={onClose}
@@ -71,7 +103,7 @@ function SiteRating() {
         title='Change Rating'
         message='Are you sure you want to change your rating for this site?'
       />
-    </VStack>
+    </HStack>
   );
 }
 

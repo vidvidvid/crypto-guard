@@ -32,6 +32,7 @@ export function useWeb3Auth() {
   const [ethAddress, setEthAddress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -62,6 +63,9 @@ export function useWeb3Auth() {
   }, []);
 
   const attemptAutomaticLogin = async (web3auth: Web3Auth) => {
+    if (isLoading || loggedIn) return;
+
+    setIsLoading(true);
     try {
       const web3authProvider = await web3auth.connect();
       if (web3authProvider) {
@@ -70,6 +74,8 @@ export function useWeb3Auth() {
     } catch (error) {
       console.error("Automatic login failed:", error);
       // Don't set an error state here, as this is an automatic attempt
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -86,21 +92,17 @@ export function useWeb3Auth() {
     const ethAddress = Array.isArray(address) ? address[0] : address;
     setEthAddress(ethAddress);
 
-    try {
-      // Create or update user in Supabase
-      setLoggedIn(true);
-      setError(null);
-    } catch (error) {
-      console.error("Error creating/updating user:", error);
-      setError("Failed to create/update user: " + (error as Error).message);
-    }
+    setLoggedIn(true);
+    setError(null);
+
+    // Any additional actions after successful login can be added here
   };
 
   const login = async () => {
-    if (!web3auth) {
-      setError("Web3Auth not initialized yet");
+    if (!web3auth || isLoading || loggedIn) {
       return;
     }
+    setIsLoading(true);
     try {
       const web3authProvider = await web3auth.connect();
       if (web3authProvider) {
@@ -109,18 +111,29 @@ export function useWeb3Auth() {
     } catch (error) {
       console.error("Error logging in:", error);
       setError("Failed to login: " + (error as Error).message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const logout = async () => {
-    if (web3auth) {
-      await web3auth.logout();
+    if (!web3auth || isLoading) {
+      return;
     }
-    setProvider(null);
-    setLoggedIn(false);
-    setUserData(null);
-    setEthAddress(null);
-    setError(null);
+    setIsLoading(true);
+    try {
+      await web3auth.logout();
+      setProvider(null);
+      setLoggedIn(false);
+      setUserData(null);
+      setEthAddress(null);
+      setError(null);
+    } catch (error) {
+      console.error("Error logging out:", error);
+      setError("Failed to logout: " + (error as Error).message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return {
@@ -133,5 +146,6 @@ export function useWeb3Auth() {
     login,
     logout,
     isInitialized,
+    isLoading,
   };
 }
