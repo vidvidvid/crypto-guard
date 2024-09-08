@@ -9,8 +9,6 @@ import { privateKeyToAccount } from "viem/accounts";
 import { useWeb3AuthContext } from "../contexts/Web3AuthContext";
 import { AbiCoder } from "ethers";
 
-const CHAIN_ID = "421614";
-
 export function useAttestations() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
